@@ -1,0 +1,472 @@
+---
+title: Docker deployment
+description: Build and run CampusBite with Docker using the included multi-stage Dockerfile for optimized production images.
+---
+
+CampusBite includes a production-ready Dockerfile with multi-stage builds for minimal image size and fast deployments.
+
+## Dockerfile overview
+
+The Dockerfile uses three stages:
+
+```dockerfile
+# Stage 1: Build frontend
+FROM node:20-bookworm-slim AS frontend-build
+
+# Stage 2: Install backend dependencies
+FROM node:20-bookworm-slim AS backend-deps
+
+# Stage 3: Runtime image
+FROM node:20-bookworm-slim AS runtime
+```
+
+### Stage 1: Frontend build
+
+```dockerfile
+FROM node:20-bookworm-slim AS frontend-build
+WORKDIR /app/frontend
+
+COPY frontend/package*.json ./
+RUN npm ci
+
+COPY frontend/ ./
+RUN npm run build
+```
+
+Builds the React frontend into static files at `frontend/dist`.
+
+### Stage 2: Backend dependencies
+
+```dockerfile
+FROM node:20-bookworm-slim AS backend-deps
+WORKDIR /app/backend
+
+COPY backend/package*.json ./
+RUN npm ci --omit=dev
+```
+
+Installs only production dependencies (no devDependencies).
+
+### Stage 3: Runtime
+
+```dockerfile
+FROM node:20-bookworm-slim AS runtime
+ENV NODE_ENV=production
+ENV PORT=8080
+WORKDIR /app
+
+COPY --from=backend-deps /app/backend/node_modules ./backend/node_modules
+COPY backend/ ./backend/
+COPY --from=frontend-build /app/frontend/dist ./frontend/dist
+
+RUN mkdir -p /app/backend/public/uploads \
+  && chown -R node:node /app
+
+USER node
+EXPOSE 8080
+
+CMD ["node", "backend/src/index.js"]
+```
+
+Combines backend code, frontend static files, and production dependencies into a minimal runtime image.
+
+## Building the image
+
+<Steps>
+  <Step title="Build the image">
+    ```bash
+    docker build -t campusbite:latest .
+    ```
+    
+    This builds all three stages and tags the final image as `campusbite:latest`.
+    
+    <Warning>
+      The build process requires ~2GB of disk space for intermediate layers.
+    </Warning>
+  </Step>
+  
+  <Step title="Verify the build">
+    ```bash
+    docker images campusbite
+    ```
+    
+    You should see output like:
+    
+    ```
+    REPOSITORY   TAG       IMAGE ID       CREATED         SIZE
+    campusbite   latest    abc123def456   2 minutes ago   450MB
+    ```
+  </Step>
+</Steps>
+
+## Running the container
+
+### Quick start
+
+Run with environment variables:
+
+```bash
+docker run -d \
+  --name campusbite \
+  -p 8080:8080 \
+  -e JWT_SECRET="your-super-secret-jwt-key-at-least-32-chars-long" \
+  -e JWT_REFRESH_SECRET="your-super-secret-refresh-key-different-from-jwt" \
+  -e MONGODB_URI="mongodb://host.docker.internal:27017/campusbite" \
+  -e FRONTEND_URL="http://localhost:8080" \
+  campusbite:latest
+```
+
+<Warning>
+  Use `host.docker.internal` instead of `localhost` to connect to MongoDB running on your host machine.
+</Warning>
+
+### Using an .env file
+
+Create a `.env` file:
+
+```bash .env
+JWT_SECRET=your-super-secret-jwt-key-at-least-32-chars-long
+JWT_REFRESH_SECRET=your-super-secret-refresh-key-different-from-jwt
+MONGODB_URI=mongodb://host.docker.internal:27017/campusbite
+FRONTEND_URL=http://localhost:8080
+APP_URL=http://localhost:8080
+
+# Optional SMTP
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-app-password
+FROM_EMAIL=noreply@campusbite.local
+```
+
+Run with the env file:
+
+```bash
+docker run -d \
+  --name campusbite \
+  -p 8080:8080 \
+  --env-file .env \
+  campusbite:latest
+```
+
+### Persistent uploads with volumes
+
+To persist uploaded files across container restarts:
+
+```bash
+docker run -d \
+  --name campusbite \
+  -p 8080:8080 \
+  -v campusbite-uploads:/app/backend/public/uploads \
+  --env-file .env \
+  campusbite:latest
+```
+
+This creates a named volume `campusbite-uploads` that persists menu images and store logos.
+
+## Docker Compose
+
+For a complete setup with MongoDB, create `docker-compose.yml`:
+
+```yaml docker-compose.yml
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: campusbite-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: secure_password
+      MONGO_INITDB_DATABASE: campusbite
+    volumes:
+      - mongodb-data:/data/db
+    ports:
+      - "27017:27017"
+
+  backend:
+    build: .
+    container_name: campusbite-backend
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+      MONGODB_URI: mongodb://admin:secure_password@mongodb:27017/campusbite?authSource=admin
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      FRONTEND_URL: http://localhost:8080
+      APP_URL: http://localhost:8080
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      FROM_EMAIL: ${FROM_EMAIL}
+    volumes:
+      - uploads:/app/backend/public/uploads
+    depends_on:
+      - mongodb
+
+volumes:
+  mongodb-data:
+  uploads:
+```
+
+Create a `.env` file:
+
+```bash .env
+JWT_SECRET=your-super-secret-jwt-key-at-least-32-chars-long
+JWT_REFRESH_SECRET=your-super-secret-refresh-key-different-from-jwt
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-app-password
+FROM_EMAIL=noreply@campusbite.local
+```
+
+Run the stack:
+
+```bash
+docker-compose up -d
+```
+
+Stop the stack:
+
+```bash
+docker-compose down
+```
+
+Stop and remove volumes:
+
+```bash
+docker-compose down -v
+```
+
+## Container management
+
+### View logs
+
+```bash
+# Live tail
+docker logs -f campusbite
+
+# Last 100 lines
+docker logs --tail 100 campusbite
+```
+
+### Execute commands in the container
+
+```bash
+# Open a shell
+docker exec -it campusbite sh
+
+# Check Node.js version
+docker exec campusbite node --version
+
+# List uploaded files
+docker exec campusbite ls -lh /app/backend/public/uploads
+```
+
+### Stop and start
+
+```bash
+# Stop
+docker stop campusbite
+
+# Start
+docker start campusbite
+
+# Restart
+docker restart campusbite
+```
+
+### Remove container
+
+```bash
+# Stop and remove
+docker rm -f campusbite
+
+# Remove image
+docker rmi campusbite:latest
+```
+
+## Environment variables in Docker
+
+All [environment variables](/deployment/environment-variables) can be set in Docker using:
+
+<CodeGroup>
+```bash -e flag
+docker run -e VARIABLE=value campusbite:latest
+```
+
+```bash --env-file
+docker run --env-file .env campusbite:latest
+```
+
+```yaml docker-compose.yml
+services:
+  backend:
+    environment:
+      VARIABLE: value
+```
+</CodeGroup>
+
+## Production best practices
+
+### Security
+
+1. **Run as non-root user**: The Dockerfile already does this with `USER node`
+
+2. **Use secrets management**: For production, use Docker secrets or environment variable injection from your orchestrator:
+   
+   ```bash
+   docker secret create jwt_secret /path/to/secret
+   docker service create --secret jwt_secret campusbite:latest
+   ```
+
+3. **Scan for vulnerabilities**:
+   
+   ```bash
+   docker scan campusbite:latest
+   ```
+
+### Resource limits
+
+Set memory and CPU limits:
+
+```bash
+docker run -d \
+  --name campusbite \
+  --memory="512m" \
+  --cpus="1.0" \
+  -p 8080:8080 \
+  --env-file .env \
+  campusbite:latest
+```
+
+In Docker Compose:
+
+```yaml
+services:
+  backend:
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
+        reservations:
+          memory: 256M
+          cpus: '0.5'
+```
+
+### Health checks
+
+Add a health check to your docker-compose.yml:
+
+```yaml
+services:
+  backend:
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+```
+
+Or in Dockerfile:
+
+```dockerfile
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:8080/api/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"
+```
+
+## Troubleshooting
+
+### Build fails with "npm install" errors
+
+**Solution**: Clear Docker build cache:
+
+```bash
+docker build --no-cache -t campusbite:latest .
+```
+
+### Container exits immediately
+
+**Solution**: Check logs for missing environment variables:
+
+```bash
+docker logs campusbite
+```
+
+Look for:
+
+```
+[Startup] Missing required environment variables: JWT_SECRET, MONGODB_URI
+```
+
+### Cannot connect to MongoDB
+
+**Solution**: Use the correct hostname:
+
+<CodeGroup>
+```bash Host MongoDB (macOS/Windows)
+MONGODB_URI=mongodb://host.docker.internal:27017/campusbite
+```
+
+```bash Host MongoDB (Linux)
+MONGODB_URI=mongodb://172.17.0.1:27017/campusbite
+```
+
+```bash Docker Compose MongoDB
+MONGODB_URI=mongodb://mongodb:27017/campusbite
+```
+</CodeGroup>
+
+### Port already in use
+
+```
+Error: bind: address already in use
+```
+
+**Solution**: Use a different host port:
+
+```bash
+docker run -p 3000:8080 campusbite:latest
+#              ^^^^ host port (change this)
+#                   ^^^^ container port (don't change)
+```
+
+Or stop the conflicting service:
+
+```bash
+lsof -ti:8080 | xargs kill -9
+```
+
+### Uploads not persisting
+
+**Solution**: Mount a volume:
+
+```bash
+docker run -v campusbite-uploads:/app/backend/public/uploads campusbite:latest
+```
+
+Verify the volume:
+
+```bash
+docker volume ls
+docker volume inspect campusbite-uploads
+```
+
+## Multi-platform builds
+
+Build for ARM64 (Apple Silicon, AWS Graviton) and AMD64:
+
+```bash
+docker buildx create --use
+docker buildx build --platform linux/amd64,linux/arm64 -t campusbite:latest --push .
+```
+
+This requires pushing to a registry (Docker Hub, GitHub Container Registry, etc.).

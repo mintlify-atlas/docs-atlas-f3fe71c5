@@ -1,0 +1,305 @@
+---
+title: List orders
+description: Retrieve a paginated list of orders for the authenticated user or store
+---
+
+## Overview
+
+Retrieves orders based on the authenticated user's role:
+
+- **Customers** (student/faculty): Returns their own orders
+- **Store employees**: Returns orders for their store
+
+Supports filtering by status and pagination.
+
+## Authentication
+
+Requires authentication with JWT token. Available to all authenticated users.
+
+## Endpoint
+
+```
+GET /api/orders
+```
+
+## Query parameters
+
+<ParamField query="status" type="string">
+  Filter by order status. Supports comma-separated values for multiple statuses.
+  
+  Valid values: `placed`, `accepted`, `processing`, `ready`, `picked_up`, `cancelled`
+  
+  Example: `status=ready,processing`
+</ParamField>
+
+<ParamField query="page" type="number" default="1">
+  Page number for pagination (minimum: 1)
+</ParamField>
+
+<ParamField query="limit" type="number" default="10">
+  Number of orders per page (minimum: 1)
+</ParamField>
+
+## Response
+
+<ResponseField name="success" type="boolean">
+  Indicates if the request was successful
+</ResponseField>
+
+<ResponseField name="data" type="array">
+  Array of order objects
+  
+  <Expandable title="Order properties">
+    <ResponseField name="id" type="string">
+      Unique order identifier
+    </ResponseField>
+    
+    <ResponseField name="orderNumber" type="string">
+      Human-readable order number
+    </ResponseField>
+    
+    <ResponseField name="orderStatus" type="string">
+      Current order status: `placed`, `accepted`, `processing`, `ready`, `picked_up`, or `cancelled`
+    </ResponseField>
+    
+    <ResponseField name="paymentStatus" type="string">
+      Payment status: `pending`, `success`, or `failed`
+    </ResponseField>
+    
+    <ResponseField name="totalAmount" type="number">
+      Total order amount in rupees
+    </ResponseField>
+    
+    <ResponseField name="items" type="array">
+      Array of ordered items with name, price, quantity, and total
+    </ResponseField>
+    
+    <ResponseField name="store" type="object">
+      Store details (for customer requests)
+    </ResponseField>
+    
+    <ResponseField name="customer" type="object">
+      Customer details (for store employee requests)
+    </ResponseField>
+    
+    <ResponseField name="createdAt" type="string">
+      ISO timestamp when order was created
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="pagination" type="object">
+  Pagination metadata
+  
+  <Expandable title="Pagination properties">
+    <ResponseField name="total" type="number">
+      Total number of orders matching the filter
+    </ResponseField>
+    
+    <ResponseField name="page" type="number">
+      Current page number
+    </ResponseField>
+    
+    <ResponseField name="limit" type="number">
+      Number of orders per page
+    </ResponseField>
+    
+    <ResponseField name="totalPages" type="number">
+      Total number of pages available
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Example request
+
+<CodeGroup>
+```bash cURL (Customer)
+curl -X GET "https://api.campusbite.com/api/orders?status=ready,processing&page=1&limit=10" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+```bash cURL (Store - Active Orders)
+curl -X GET "https://api.campusbite.com/api/orders?status=placed,accepted,processing,ready" \
+  -H "Authorization: Bearer STORE_JWT_TOKEN"
+```
+
+```javascript JavaScript
+const response = await fetch(
+  'https://api.campusbite.com/api/orders?status=ready,processing&page=1&limit=10',
+  {
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  }
+);
+
+const data = await response.json();
+```
+</CodeGroup>
+
+## Example response (Customer)
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "65f7a8b9c1234567890abcde",
+      "orderNumber": "ORD-20240318-001",
+      "orderStatus": "ready",
+      "paymentStatus": "success",
+      "totalAmount": 249.50,
+      "items": [
+        {
+          "menuItemId": "65f7a8b9c1234567890abcdf",
+          "name": "Paneer Burger",
+          "price": 120,
+          "quantity": 1,
+          "total": 120
+        },
+        {
+          "menuItemId": "65f7a8b9c1234567890abce0",
+          "name": "French Fries",
+          "price": 80,
+          "quantity": 1,
+          "total": 80
+        },
+        {
+          "menuItemId": "65f7a8b9c1234567890abce1",
+          "name": "Cold Coffee",
+          "price": 49.50,
+          "quantity": 1,
+          "total": 49.50
+        }
+      ],
+      "store": {
+        "id": "65f7a8b9c1234567890abce2",
+        "name": "Campus Cafe",
+        "location": "Building A, Ground Floor"
+      },
+      "readyAt": "2024-03-18T14:45:00.000Z",
+      "readyExpiresAt": "2024-03-18T15:05:00.000Z",
+      "createdAt": "2024-03-18T14:30:00.000Z",
+      "updatedAt": "2024-03-18T14:45:00.000Z"
+    },
+    {
+      "id": "65f7a8b9c1234567890abcdf",
+      "orderNumber": "ORD-20240318-002",
+      "orderStatus": "processing",
+      "paymentStatus": "success",
+      "totalAmount": 180,
+      "items": [
+        {
+          "menuItemId": "65f7a8b9c1234567890abce3",
+          "name": "Masala Dosa",
+          "price": 100,
+          "quantity": 1,
+          "total": 100
+        },
+        {
+          "menuItemId": "65f7a8b9c1234567890abce4",
+          "name": "Filter Coffee",
+          "price": 40,
+          "quantity": 2,
+          "total": 80
+        }
+      ],
+      "store": {
+        "id": "65f7a8b9c1234567890abce5",
+        "name": "South Indian Corner",
+        "location": "Food Court, 2nd Floor"
+      },
+      "createdAt": "2024-03-18T13:15:00.000Z",
+      "updatedAt": "2024-03-18T13:25:00.000Z"
+    }
+  ],
+  "pagination": {
+    "total": 15,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 2
+  }
+}
+```
+
+## Example response (Store Employee)
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "65f7a8b9c1234567890abcde",
+      "orderNumber": "ORD-20240318-001",
+      "orderStatus": "placed",
+      "paymentStatus": "pending",
+      "totalAmount": 249.50,
+      "items": [
+        {
+          "menuItemId": "65f7a8b9c1234567890abcdf",
+          "name": "Paneer Burger",
+          "price": 120,
+          "quantity": 1,
+          "total": 120
+        },
+        {
+          "menuItemId": "65f7a8b9c1234567890abce0",
+          "name": "French Fries",
+          "price": 80,
+          "quantity": 1,
+          "total": 80
+        }
+      ],
+      "customer": {
+        "id": "65f7a8b9c1234567890abce6",
+        "name": "Rahul Sharma",
+        "email": "rahul.sharma@college.edu",
+        "phoneNumber": "+919876543210",
+        "registerNumber": "21CS001"
+      },
+      "paymentReference": "CBPAY1A2B3C4D5E",
+      "transactionId": "UPI12345678",
+      "isCommitmentConfirmed": false,
+      "commitmentDeadlineAt": "2024-03-18T14:34:00.000Z",
+      "createdAt": "2024-03-18T14:30:00.000Z",
+      "updatedAt": "2024-03-18T14:30:00.000Z"
+    }
+  ],
+  "pagination": {
+    "total": 42,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 5
+  }
+}
+```
+
+## Error responses
+
+<Expandable title="404 - Store not found (for store employees)">
+```json
+{
+  "success": false,
+  "message": "You do not own a store."
+}
+```
+</Expandable>
+
+## Use cases
+
+### For customers
+
+- View order history
+- Check status of active orders
+- Track orders that are ready for pickup
+
+### For store employees
+
+- View incoming orders that need payment verification
+- Track orders being prepared
+- See ready orders waiting for customer pickup
+- Monitor completed and cancelled orders
+
+<Note>
+Orders are returned in descending order by creation date (newest first).
+</Note>

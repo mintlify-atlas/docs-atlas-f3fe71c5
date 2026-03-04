@@ -1,0 +1,162 @@
+---
+title: Login
+description: Authenticate a user and receive access and refresh tokens
+---
+
+## POST /api/auth/login
+
+Authenticates a user with email and password, returning JWT access and refresh tokens. The user's email must be verified before they can log in.
+
+### Request body
+
+<ParamField body="email" type="string" required>
+  User's registered email address
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  User's password
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean">
+  Indicates if the login was successful
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Human-readable response message
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  Authentication data containing user information and tokens
+  
+  <Expandable title="properties">
+    <ResponseField name="user" type="object">
+      Authenticated user information (sanitized)
+      
+      <Expandable title="properties">
+        <ResponseField name="_id" type="string">
+          Unique user identifier
+        </ResponseField>
+        
+        <ResponseField name="name" type="string">
+          User's full name
+        </ResponseField>
+        
+        <ResponseField name="email" type="string">
+          User's email address
+        </ResponseField>
+        
+        <ResponseField name="role" type="string">
+          User role: `student`, `faculty`, or `store_employee`
+        </ResponseField>
+        
+        <ResponseField name="is_email_verified" type="boolean">
+          Email verification status
+        </ResponseField>
+        
+        <ResponseField name="register_number" type="string">
+          Student registration number (if applicable)
+        </ResponseField>
+        
+        <ResponseField name="employee_id" type="string">
+          Employee ID (if applicable)
+        </ResponseField>
+        
+        <ResponseField name="phone_number" type="string">
+          Phone number (if applicable)
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="accessToken" type="string">
+      JWT access token for authenticated requests. Default expiration: 1 hour
+    </ResponseField>
+    
+    <ResponseField name="refreshToken" type="string">
+      JWT refresh token for obtaining new access tokens. Default expiration: 7 days
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Status codes
+
+- `200` - Login successful, tokens provided
+- `401` - Invalid email or password
+- `403` - Email not verified
+- `500` - Internal server error
+
+<Note>
+  The access token should be included in the `Authorization` header as `Bearer <token>` for subsequent authenticated requests.
+</Note>
+
+<Warning>
+  Store the refresh token securely (e.g., httpOnly cookie or secure storage). Use it to obtain new access tokens when they expire.
+</Warning>
+
+### Examples
+
+<CodeGroup>
+
+```bash Login request
+curl -X POST https://api.campusbite.com/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "john.doe@christuniversity.in",
+    "password": "SecurePass123"
+  }'
+```
+
+```javascript Using the access token
+fetch('https://api.campusbite.com/api/orders', {
+  headers: {
+    'Authorization': `Bearer ${accessToken}`,
+    'Content-Type': 'application/json'
+  }
+});
+```
+
+</CodeGroup>
+
+#### Success response (200)
+
+```json
+{
+  "success": true,
+  "message": "Login successful.",
+  "data": {
+    "user": {
+      "_id": "507f1f77bcf86cd799439011",
+      "name": "John Doe",
+      "email": "john.doe@christuniversity.in",
+      "role": "student",
+      "register_number": "2021CS001",
+      "employee_id": null,
+      "phone_number": null,
+      "is_email_verified": true,
+      "created_at": "2024-01-15T10:30:00.000Z",
+      "updated_at": "2024-01-15T10:30:00.000Z"
+    },
+    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  }
+}
+```
+
+#### Error response (401)
+
+```json
+{
+  "success": false,
+  "message": "Invalid email or password."
+}
+```
+
+#### Error response (403)
+
+```json
+{
+  "success": false,
+  "message": "Please verify your email before logging in."
+}
+```

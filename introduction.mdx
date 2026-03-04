@@ -1,0 +1,305 @@
+---
+title: Introduction
+description: Welcome to CampusBite - a modern campus food ordering platform
+mode: custom
+---
+
+<div className="min-h-screen dark:bg-[#0f1117] bg-white">
+  {/* Hero Section */}
+  <div className="relative overflow-hidden dark:bg-gradient-to-br dark:from-[#FF6B35] dark:via-[#D94E1F] dark:to-[#0f1117] bg-gradient-to-br from-[#FF6B35] via-[#FFB84D] to-white py-20">
+    <div className="max-w-7xl mx-auto px-6 lg:px-8">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+        <div className="lg:col-span-7">
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-6">
+            Welcome to CampusBite
+          </h1>
+          <p className="text-lg sm:text-xl text-white/90 mb-8 max-w-2xl">
+            A complete campus food ordering platform that connects students, faculty, and canteen stores. Order food online, track your order in real-time, and pick up with OTP verification.
+          </p>
+          <div className="flex flex-wrap gap-4">
+            <a
+              href="/quickstart"
+              className="inline-flex items-center px-6 py-3 text-base font-semibold rounded-lg bg-white text-[#FF6B35] hover:bg-gray-100 transition-colors"
+            >
+              Get started
+            </a>
+            <a
+              href="/api/auth/register"
+              className="inline-flex items-center px-6 py-3 text-base font-semibold rounded-lg border-2 border-white/30 bg-white/10 text-white hover:bg-white/20 transition-colors"
+            >
+              View API reference
+            </a>
+          </div>
+        </div>
+        <div className="lg:col-span-5 hidden lg:block">
+          <div className="relative">
+            <div className="absolute inset-0 bg-white/10 backdrop-blur-sm rounded-2xl"></div>
+            <div className="relative p-8 space-y-4">
+              <div className="dark:bg-[#1a1d27] bg-white p-4 rounded-lg shadow-lg border dark:border-[#27272a] border-gray-200">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 rounded-full bg-[#FF6B35] flex items-center justify-center text-white font-bold">
+                    🍔
+                  </div>
+                  <div>
+                    <div className="font-semibold dark:text-white text-gray-900">Campus Canteen</div>
+                    <div className="text-sm dark:text-gray-400 text-gray-600">Open now</div>
+                  </div>
+                </div>
+              </div>
+              <div className="dark:bg-[#1a1d27] bg-white p-4 rounded-lg shadow-lg border dark:border-[#27272a] border-gray-200">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="font-semibold dark:text-white text-gray-900">Order #1234</div>
+                  <div className="px-2 py-1 bg-[#FF6B35] text-white text-xs rounded-full">Ready</div>
+                </div>
+                <div className="text-sm dark:text-gray-400 text-gray-600">OTP: 5678</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {/* Quick Start Section */}
+  <div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+    <h2 className="text-2xl sm:text-3xl font-semibold dark:text-white text-gray-900 mb-4">
+      Quick start
+    </h2>
+    <p className="text-base dark:text-gray-400 text-gray-600 mb-8">
+      Get CampusBite running on your campus in minutes
+    </p>
+    
+    <Steps>
+      <Step title="Clone the repository">
+        Clone the CampusBite repository to your local machine.
+        
+        ```bash
+        git clone https://github.com/zs0c131y/CampusBite.git
+        cd CampusBite
+        ```
+      </Step>
+      
+      <Step title="Set up PostgreSQL database">
+        Create a PostgreSQL database for CampusBite. The application will automatically create the required tables on first run.
+        
+        ```sql
+        CREATE DATABASE campusbite;
+        ```
+      </Step>
+      
+      <Step title="Configure environment variables">
+        Copy the example environment file and configure your database connection, JWT secrets, and email settings.
+        
+        ```bash
+        cp backend/.env.example backend/.env
+        ```
+        
+        <Note>
+          You'll need a Gmail account with an App Password for email verification. Generate one at Google Account → Security → 2-Step Verification → App passwords.
+        </Note>
+      </Step>
+      
+      <Step title="Install dependencies and start">
+        Install dependencies for both backend and frontend, then start the development servers.
+        
+        ```bash
+        # Install backend dependencies
+        cd backend && npm install
+        
+        # Install frontend dependencies
+        cd ../frontend && npm install
+        
+        # Start backend (in one terminal)
+        cd backend && npm run dev
+        
+        # Start frontend (in another terminal)
+        cd frontend && npm run dev
+        ```
+        
+        The application will be available at `http://localhost:5173`
+      </Step>
+    </Steps>
+  </div>
+
+  {/* Features Section */}
+  <div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+    <h2 className="text-2xl sm:text-3xl font-semibold dark:text-white text-gray-900 mb-4">
+      Explore by role
+    </h2>
+    <p className="text-base dark:text-gray-400 text-gray-600 mb-8">
+      CampusBite provides tailored experiences for students, faculty, and store owners
+    </p>
+    
+    <CardGroup cols={3}>
+      <Card
+        title="For students"
+        icon="graduation-cap"
+        href="/guides/students"
+      >
+        Browse stores, order food, track deliveries, and reorder your favorites
+      </Card>
+      <Card
+        title="For store owners"
+        icon="store"
+        href="/guides/store-owners"
+      >
+        Manage your menu, accept orders, and track your daily revenue
+      </Card>
+      <Card
+        title="For developers"
+        icon="code"
+        href="/api/auth/register"
+      >
+        Integrate with the CampusBite API to build custom experiences
+      </Card>
+    </CardGroup>
+  </div>
+
+  {/* Key Features Section */}
+  <div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+    <h2 className="text-2xl sm:text-3xl font-semibold dark:text-white text-gray-900 mb-4">
+      Key features
+    </h2>
+    <p className="text-base dark:text-gray-400 text-gray-600 mb-8">
+      Everything you need to run a modern campus food ordering system
+    </p>
+    
+    <CardGroup cols={2}>
+      <Card
+        title="Role-based authentication"
+        icon="shield-check"
+        href="/features/authentication"
+      >
+        Secure JWT-based authentication with email verification for students, faculty, and store employees
+      </Card>
+      <Card
+        title="Real-time order tracking"
+        icon="clock"
+        href="/features/order-tracking"
+      >
+        Live status updates from order placement through pickup with status timeline
+      </Card>
+      <Card
+        title="UPI payment integration"
+        icon="credit-card"
+        href="/features/upi-payments"
+      >
+        Native UPI deep-link payments supporting GPay, PhonePe, Paytm, and BHIM
+      </Card>
+      <Card
+        title="OTP verification"
+        icon="key"
+        href="/features/otp-verification"
+      >
+        Secure order pickup with OTP-based verification system
+      </Card>
+      <Card
+        title="Menu management"
+        icon="utensils"
+        href="/features/menu-management"
+      >
+        Complete menu CRUD operations with availability toggles and category filters
+      </Card>
+      <Card
+        title="Store dashboard"
+        icon="chart-line"
+        href="/guides/store-owners"
+      >
+        Analytics dashboard with order queue, revenue tracking, and store settings
+      </Card>
+    </CardGroup>
+  </div>
+
+  {/* Architecture Section */}
+  <div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+    <h2 className="text-2xl sm:text-3xl font-semibold dark:text-white text-gray-900 mb-4">
+      Technical overview
+    </h2>
+    <p className="text-base dark:text-gray-400 text-gray-600 mb-8">
+      Learn about the technology stack and architecture behind CampusBite
+    </p>
+    
+    <CardGroup cols={3}>
+      <Card
+        title="Tech stack"
+        icon="layer-group"
+        href="/architecture/tech-stack"
+      >
+        React 18, Node.js, Express, PostgreSQL, Tailwind CSS v4
+      </Card>
+      <Card
+        title="Architecture overview"
+        icon="sitemap"
+        href="/architecture/overview"
+      >
+        Full-stack architecture with REST API and JWT authentication
+      </Card>
+      <Card
+        title="Project structure"
+        icon="folder-tree"
+        href="/architecture/project-structure"
+      >
+        Organized codebase with clear separation of concerns
+      </Card>
+    </CardGroup>
+  </div>
+
+  {/* Deployment Section */}
+  <div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+    <h2 className="text-2xl sm:text-3xl font-semibold dark:text-white text-gray-900 mb-4">
+      Deploy to production
+    </h2>
+    <p className="text-base dark:text-gray-400 text-gray-600 mb-8">
+      Ready to deploy? Choose your platform and get started
+    </p>
+    
+    <CardGroup cols={2}>
+      <Card
+        title="Deploy to Fly.io"
+        icon="rocket"
+        href="/deployment/fly-io"
+      >
+        Deploy with single machine setup and persistent volumes
+      </Card>
+      <Card
+        title="Docker deployment"
+        icon="docker"
+        href="/deployment/docker"
+      >
+        Run with Docker and Docker Compose for local or cloud deployment
+      </Card>
+      <Card
+        title="Database setup"
+        icon="database"
+        href="/deployment/database-setup"
+      >
+        Configure PostgreSQL with auto-schema creation
+      </Card>
+      <Card
+        title="Environment variables"
+        icon="gear"
+        href="/deployment/environment-variables"
+      >
+        Complete reference for all configuration options
+      </Card>
+    </CardGroup>
+  </div>
+
+  {/* CTA Section */}
+  <div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+    <div className="dark:bg-gradient-to-r dark:from-[#FF6B35] dark:to-[#D94E1F] bg-gradient-to-r from-[#FF6B35] to-[#FFB84D] rounded-2xl p-8 sm:p-12 text-center">
+      <h2 className="text-2xl sm:text-3xl font-bold text-white mb-4">
+        Ready to get started?
+      </h2>
+      <p className="text-lg text-white/90 mb-6 max-w-2xl mx-auto">
+        Follow the quickstart guide to set up CampusBite on your campus in under 10 minutes.
+      </p>
+      <a
+        href="/quickstart"
+        className="inline-flex items-center px-6 py-3 text-base font-semibold rounded-lg bg-white text-[#FF6B35] hover:bg-gray-100 transition-colors"
+      >
+        Get started now
+      </a>
+    </div>
+  </div>
+</div>

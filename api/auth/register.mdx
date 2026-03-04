@@ -1,0 +1,212 @@
+---
+title: Register user
+description: Create a new user account for students, faculty, or store employees
+---
+
+## POST /api/auth/register
+
+Creates a new user account and sends a verification email. The registration process validates role-specific requirements and creates associated resources (e.g., stores for store employees).
+
+### Request body
+
+<ParamField body="name" type="string" required>
+  User's full name (minimum 2 characters)
+</ParamField>
+
+<ParamField body="email" type="string" required>
+  User's email address. Students and faculty must use a `christuniversity.in` email (subdomains allowed)
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  Password must meet the following requirements:
+  - Minimum 8 characters
+  - At least one uppercase letter
+  - At least one lowercase letter
+  - At least one digit
+</ParamField>
+
+<ParamField body="confirmPassword" type="string" required>
+  Must match the password field
+</ParamField>
+
+<ParamField body="role" type="string" required>
+  User role. Must be one of: `student`, `faculty`, or `store_employee`
+</ParamField>
+
+<ParamField body="registerNumber" type="string">
+  Student registration number. Required when role is `student`
+</ParamField>
+
+<ParamField body="employeeId" type="string">
+  Employee identification number. Required when role is `faculty` or `store_employee`
+</ParamField>
+
+<ParamField body="phoneNumber" type="string">
+  Indian mobile number (10 digits starting with 6-9). Required when role is `store_employee`
+</ParamField>
+
+<ParamField body="storeName" type="string">
+  Name of the store. Required when role is `store_employee`
+</ParamField>
+
+<ParamField body="storeUpiId" type="string">
+  Store UPI ID for payments (format: `username@provider`). Required when role is `store_employee`
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean">
+  Indicates if the registration was successful
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Human-readable response message
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  The created user object (sanitized)
+  
+  <Expandable title="properties">
+    <ResponseField name="_id" type="string">
+      Unique user identifier
+    </ResponseField>
+    
+    <ResponseField name="name" type="string">
+      User's full name
+    </ResponseField>
+    
+    <ResponseField name="email" type="string">
+      User's email address
+    </ResponseField>
+    
+    <ResponseField name="role" type="string">
+      User role: `student`, `faculty`, or `store_employee`
+    </ResponseField>
+    
+    <ResponseField name="register_number" type="string">
+      Student registration number (if applicable)
+    </ResponseField>
+    
+    <ResponseField name="employee_id" type="string">
+      Employee ID (if applicable)
+    </ResponseField>
+    
+    <ResponseField name="phone_number" type="string">
+      Phone number (if applicable)
+    </ResponseField>
+    
+    <ResponseField name="is_email_verified" type="boolean">
+      Email verification status (false for new accounts)
+    </ResponseField>
+    
+    <ResponseField name="created_at" type="string">
+      Account creation timestamp
+    </ResponseField>
+    
+    <ResponseField name="updated_at" type="string">
+      Last update timestamp
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Status codes
+
+- `201` - Registration successful, verification email sent
+- `400` - Invalid request data or email domain mismatch
+- `409` - Email already registered
+- `500` - Internal server error
+
+<Note>
+  After registration, users must verify their email before logging in. A verification email is sent automatically with a unique token.
+</Note>
+
+<Warning>
+  Students and faculty must use a `christuniversity.in` email address. Store employees can use any valid email.
+</Warning>
+
+### Examples
+
+<CodeGroup>
+
+```bash Student registration
+curl -X POST https://api.campusbite.com/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "John Doe",
+    "email": "john.doe@christuniversity.in",
+    "password": "SecurePass123",
+    "confirmPassword": "SecurePass123",
+    "role": "student",
+    "registerNumber": "2021CS001"
+  }'
+```
+
+```bash Faculty registration
+curl -X POST https://api.campusbite.com/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Dr. Jane Smith",
+    "email": "jane.smith@christuniversity.in",
+    "password": "SecurePass123",
+    "confirmPassword": "SecurePass123",
+    "role": "faculty",
+    "employeeId": "FAC2023001"
+  }'
+```
+
+```bash Store employee registration
+curl -X POST https://api.campusbite.com/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Raj Kumar",
+    "email": "raj@example.com",
+    "password": "SecurePass123",
+    "confirmPassword": "SecurePass123",
+    "role": "store_employee",
+    "employeeId": "EMP2023001",
+    "phoneNumber": "9876543210",
+    "storeName": "Campus Cafe",
+    "storeUpiId": "campuscafe@paytm"
+  }'
+```
+
+</CodeGroup>
+
+#### Success response (201)
+
+```json
+{
+  "success": true,
+  "message": "Registration successful. Please check your email to verify your account.",
+  "data": {
+    "_id": "507f1f77bcf86cd799439011",
+    "name": "John Doe",
+    "email": "john.doe@christuniversity.in",
+    "role": "student",
+    "register_number": "2021CS001",
+    "employee_id": null,
+    "phone_number": null,
+    "is_email_verified": false,
+    "created_at": "2024-01-15T10:30:00.000Z",
+    "updated_at": "2024-01-15T10:30:00.000Z"
+  }
+}
+```
+
+#### Error response (409)
+
+```json
+{
+  "success": false,
+  "message": "An account with this email already exists."
+}
+```
+
+#### Error response (400)
+
+```json
+{
+  "success": false,
+  "message": "Student and faculty accounts must use a christuniversity.in email (subdomains are allowed)."
+}
+```

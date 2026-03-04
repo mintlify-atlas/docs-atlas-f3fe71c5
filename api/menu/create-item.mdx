@@ -1,0 +1,233 @@
+---
+title: Create menu item
+description: Add a new menu item to your store with optional image upload
+---
+
+## Endpoint
+
+```
+POST /api/menu
+```
+
+## Authentication
+
+This endpoint requires authentication and store employee authorization.
+
+<Note>
+  Only store owners can create menu items. The system automatically associates the menu item with the authenticated user's store.
+</Note>
+
+## Request
+
+This endpoint accepts `multipart/form-data` for image uploads.
+
+### Headers
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token for authentication
+</ParamField>
+
+<ParamField header="Content-Type" type="string" required>
+  Must be `multipart/form-data`
+</ParamField>
+
+### Body parameters
+
+<ParamField body="name" type="string" required>
+  Name of the menu item. Will be trimmed of whitespace.
+</ParamField>
+
+<ParamField body="price" type="number" required>
+  Price of the menu item. Must be a positive number (minimum 0).
+</ParamField>
+
+<ParamField body="description" type="string">
+  Optional description of the menu item.
+</ParamField>
+
+<ParamField body="category" type="string">
+  Optional category for the menu item (e.g., "Burgers", "Drinks", "Desserts").
+</ParamField>
+
+<ParamField body="image" type="file">
+  Optional image file for the menu item. Accepted formats depend on server configuration.
+</ParamField>
+
+## Response
+
+<ResponseField name="success" type="boolean">
+  Indicates if the request was successful
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Human-readable message describing the result
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  Contains the created menu item data
+  
+  <ResponseField name="data.menuItem" type="object">
+    The created menu item object
+    
+    <ResponseField name="data.menuItem.id" type="string">
+      Unique identifier for the menu item
+    </ResponseField>
+    
+    <ResponseField name="data.menuItem.store_id" type="string">
+      ID of the store this item belongs to
+    </ResponseField>
+    
+    <ResponseField name="data.menuItem.name" type="string">
+      Name of the menu item
+    </ResponseField>
+    
+    <ResponseField name="data.menuItem.description" type="string">
+      Description of the menu item (null if not provided)
+    </ResponseField>
+    
+    <ResponseField name="data.menuItem.price" type="number">
+      Price of the menu item
+    </ResponseField>
+    
+    <ResponseField name="data.menuItem.image_url" type="string">
+      URL to the menu item image (null if not uploaded)
+    </ResponseField>
+    
+    <ResponseField name="data.menuItem.category" type="string">
+      Category of the menu item (null if not provided)
+    </ResponseField>
+    
+    <ResponseField name="data.menuItem.is_available" type="boolean">
+      Availability status (defaults to true)
+    </ResponseField>
+    
+    <ResponseField name="data.menuItem.created_at" type="string">
+      ISO 8601 timestamp of creation
+    </ResponseField>
+    
+    <ResponseField name="data.menuItem.updated_at" type="string">
+      ISO 8601 timestamp of last update
+    </ResponseField>
+  </ResponseField>
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+
+```bash cURL - With image
+curl -X POST https://api.campusbite.com/api/menu \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -F "name=Classic Cheeseburger" \
+  -F "description=Juicy beef patty with cheddar cheese, lettuce, tomato, and our special sauce" \
+  -F "price=8.99" \
+  -F "category=Burgers" \
+  -F "image=@/path/to/burger.jpg"
+```
+
+```bash cURL - Without image
+curl -X POST https://api.campusbite.com/api/menu \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -F "name=French Fries" \
+  -F "description=Crispy golden fries" \
+  -F "price=3.99" \
+  -F "category=Sides"
+```
+
+```javascript JavaScript
+const formData = new FormData();
+formData.append('name', 'Classic Cheeseburger');
+formData.append('description', 'Juicy beef patty with cheddar cheese, lettuce, tomato, and our special sauce');
+formData.append('price', '8.99');
+formData.append('category', 'Burgers');
+formData.append('image', imageFile);
+
+const response = await fetch('https://api.campusbite.com/api/menu', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_ACCESS_TOKEN'
+  },
+  body: formData
+});
+
+const data = await response.json();
+```
+
+```python Python
+import requests
+
+url = "https://api.campusbite.com/api/menu"
+headers = {
+    "Authorization": "Bearer YOUR_ACCESS_TOKEN"
+}
+data = {
+    "name": "Classic Cheeseburger",
+    "description": "Juicy beef patty with cheddar cheese, lettuce, tomato, and our special sauce",
+    "price": "8.99",
+    "category": "Burgers"
+}
+files = {
+    "image": open("burger.jpg", "rb")
+}
+
+response = requests.post(url, headers=headers, data=data, files=files)
+print(response.json())
+```
+
+</CodeGroup>
+
+### Success response (201)
+
+```json
+{
+  "success": true,
+  "message": "Menu item added successfully.",
+  "data": {
+    "menuItem": {
+      "id": "507f1f77bcf86cd799439011",
+      "store_id": "507f191e810c19729de860ea",
+      "name": "Classic Cheeseburger",
+      "description": "Juicy beef patty with cheddar cheese, lettuce, tomato, and our special sauce",
+      "price": 8.99,
+      "image_url": "https://api.campusbite.com/uploads/burger-1234567890.jpg",
+      "category": "Burgers",
+      "is_available": true,
+      "created_at": "2026-03-04T10:30:00.000Z",
+      "updated_at": "2026-03-04T10:30:00.000Z"
+    }
+  }
+}
+```
+
+### Error responses
+
+<Warning>
+  If you don't own a store, you'll receive a 404 error.
+</Warning>
+
+#### 404 - No store found
+
+```json
+{
+  "success": false,
+  "message": "You do not own a store."
+}
+```
+
+#### 401 - Unauthorized
+
+```json
+{
+  "success": false,
+  "message": "Authentication required."
+}
+```
+
+#### 403 - Forbidden
+
+```json
+{
+  "success": false,
+  "message": "Insufficient permissions."
+}
+```

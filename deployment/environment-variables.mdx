@@ -1,0 +1,263 @@
+---
+title: Environment variables
+description: Configure your CampusBite backend with environment variables for authentication, database, email, and deployment settings.
+---
+
+CampusBite uses environment variables to configure backend services. You must set these variables before starting the server.
+
+## Required variables
+
+These variables are validated at startup and will prevent the server from starting if missing.
+
+<ParamField path="JWT_SECRET" type="string" required>
+  Secret key for signing JWT access tokens. Must be at least 32 characters long.
+  
+  ```bash
+  # Generate a secure random string
+  openssl rand -base64 48
+  ```
+</ParamField>
+
+<ParamField path="JWT_REFRESH_SECRET" type="string" required>
+  Secret key for signing JWT refresh tokens. Must be at least 32 characters long and different from `JWT_SECRET`.
+  
+  ```bash
+  openssl rand -base64 48
+  ```
+</ParamField>
+
+<ParamField path="MONGODB_URI" type="string" required>
+  MongoDB connection string. Supports both standard and SRV formats.
+  
+  ```bash
+  # MongoDB Atlas (SRV)
+  mongodb+srv://username:password@cluster.mongodb.net/campusbite
+  
+  # Standard connection string
+  mongodb://username:password@host:27017/campusbite
+  ```
+  
+  <Warning>
+    If using MongoDB Atlas behind restrictive DNS, you may need to use a non-SRV connection string to avoid DNS lookup failures.
+  </Warning>
+</ParamField>
+
+<ParamField path="FRONTEND_URL" type="string" required>
+  URL where your frontend is hosted. Used for CORS configuration and email links.
+  
+  ```bash
+  # Production
+  https://campusbite.example.com
+  
+  # Development (automatically allowed)
+  http://localhost:5173
+  ```
+</ParamField>
+
+## Optional core variables
+
+<ParamField path="PORT" type="number" default="5000">
+  Port number for the HTTP server.
+  
+  ```bash
+  PORT=8080
+  ```
+</ParamField>
+
+<ParamField path="NODE_ENV" type="string" default="development">
+  Runtime environment. Set to `production` to enable production optimizations:
+  - Serves frontend static files from `frontend/dist`
+  - Uses combined logging format
+  - Enables stricter security headers
+  
+  ```bash
+  NODE_ENV=production
+  ```
+</ParamField>
+
+<ParamField path="APP_URL" type="string">
+  Alternative URL for your application. Used as fallback for CORS and payment UPI links.
+  
+  ```bash
+  APP_URL=https://campusbite.fly.dev
+  ```
+</ParamField>
+
+<ParamField path="MONGODB_DB_NAME" type="string">
+  Database name to use if not specified in `MONGODB_URI`.
+  
+  ```bash
+  MONGODB_DB_NAME=campusbite
+  ```
+</ParamField>
+
+<ParamField path="DATABASE_URL" type="string">
+  Alternative to `MONGODB_URI`. If both are set, `MONGODB_URI` takes precedence.
+</ParamField>
+
+## JWT token expiration
+
+<ParamField path="JWT_EXPIRES_IN" type="string" default="1h">
+  Access token expiration time. Uses [vercel/ms](https://github.com/vercel/ms) format.
+  
+  ```bash
+  # Examples
+  JWT_EXPIRES_IN=1h
+  JWT_EXPIRES_IN=30m
+  JWT_EXPIRES_IN=2h
+  ```
+</ParamField>
+
+<ParamField path="JWT_REFRESH_EXPIRES_IN" type="string" default="7d">
+  Refresh token expiration time. Uses [vercel/ms](https://github.com/vercel/ms) format.
+  
+  ```bash
+  JWT_REFRESH_EXPIRES_IN=7d
+  JWT_REFRESH_EXPIRES_IN=14d
+  ```
+</ParamField>
+
+## Email configuration (SMTP)
+
+Email features are optional. If SMTP variables are incomplete, the server will start but skip email functionality (registration verification, password reset).
+
+<ParamField path="SMTP_HOST" type="string">
+  SMTP server hostname.
+  
+  ```bash
+  # Gmail
+  SMTP_HOST=smtp.gmail.com
+  
+  # SendGrid
+  SMTP_HOST=smtp.sendgrid.net
+  ```
+</ParamField>
+
+<ParamField path="SMTP_PORT" type="number" default="587">
+  SMTP server port. Common values:
+  - `587` - STARTTLS (recommended)
+  - `465` - SSL/TLS
+  - `25` - Unencrypted (not recommended)
+</ParamField>
+
+<ParamField path="SMTP_USER" type="string">
+  SMTP authentication username.
+  
+  ```bash
+  SMTP_USER=apikey  # SendGrid
+  SMTP_USER=your-email@gmail.com  # Gmail
+  ```
+</ParamField>
+
+<ParamField path="SMTP_PASS" type="string">
+  SMTP authentication password or API key.
+  
+  <Warning>
+    For Gmail, use an [App Password](https://support.google.com/accounts/answer/185833), not your regular password.
+  </Warning>
+</ParamField>
+
+<ParamField path="FROM_EMAIL" type="string">
+  Email address used in the "From" field. Falls back to `SMTP_USER` if not set.
+  
+  ```bash
+  FROM_EMAIL=noreply@campusbite.example.com
+  ```
+</ParamField>
+
+## Order management
+
+These variables control order lifecycle timeouts and no-show restrictions.
+
+<ParamField path="CHECKOUT_TOKEN_SECRET" type="string">
+  Secret for signing checkout tokens. Falls back to `JWT_SECRET` if not set.
+  
+  ```bash
+  openssl rand -base64 48
+  ```
+</ParamField>
+
+<ParamField path="UNPAID_ORDER_TIMEOUT_MINUTES" type="number" default="8">
+  Minutes before unpaid orders are automatically cancelled.
+</ParamField>
+
+<ParamField path="READY_NO_SHOW_TIMEOUT_MINUTES" type="number" default="20">
+  Minutes before a ready order is marked as no-show if not picked up.
+</ParamField>
+
+<ParamField path="ORDER_COMMITMENT_TIMEOUT_MINUTES" type="number" default="4">
+  Minutes for vendors to accept or reject orders before automatic cancellation.
+</ParamField>
+
+<ParamField path="NO_SHOW_WARNING_THRESHOLD" type="number" default="2">
+  Number of no-shows before warning the user.
+</ParamField>
+
+<ParamField path="NO_SHOW_RESTRICTION_THRESHOLD" type="number" default="3">
+  Number of no-shows before temporarily restricting ordering.
+</ParamField>
+
+<ParamField path="NO_SHOW_RESTRICTION_DAYS" type="number" default="14">
+  Days to restrict ordering after hitting the no-show threshold.
+</ParamField>
+
+## Payment
+
+<ParamField path="UPI_MERCHANT_CODE" type="string">
+  Merchant UPI ID for generating UPI payment links.
+  
+  ```bash
+  UPI_MERCHANT_CODE=merchant@paytm
+  ```
+</ParamField>
+
+## File uploads
+
+<ParamField path="UPLOAD_DIR" type="string" default="/data/uploads or backend/public/uploads">
+  Directory for storing uploaded files (menu images, store logos). The application automatically:
+  1. Checks if `/data` exists (Fly.io volume mount)
+  2. Uses `/data/uploads` if available
+  3. Falls back to `backend/public/uploads`
+  
+  ```bash
+  # Custom path
+  UPLOAD_DIR=/var/www/uploads
+  
+  # Fly.io (set in fly.toml)
+  UPLOAD_DIR=/data/uploads
+  ```
+</ParamField>
+
+## Fly.io specific
+
+<ParamField path="FLY_APP_NAME" type="string">
+  Automatically set by Fly.io. Used to construct the default CORS origin `https://{FLY_APP_NAME}.fly.dev`.
+</ParamField>
+
+## Database type
+
+<ParamField path="DB_TYPE" type="string" default="mongodb">
+  Database type identifier. CampusBite only supports MongoDB. Setting this to any other value will log a warning but not prevent startup.
+</ParamField>
+
+## Development setup
+
+For local development, create a `.env` file in the `backend/` directory:
+
+```bash backend/.env
+JWT_SECRET=your-super-secret-jwt-key-at-least-32-chars-long-abc123
+JWT_REFRESH_SECRET=your-super-secret-refresh-key-different-from-jwt-abc123
+MONGODB_URI=mongodb://localhost:27017/campusbite
+FRONTEND_URL=http://localhost:5173
+
+# Optional: Email (for testing verification flows)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-app-password
+FROM_EMAIL=noreply@campusbite.local
+```
+
+<Warning>
+  Never commit `.env` files to version control. Add `.env` to your `.gitignore`.
+</Warning>

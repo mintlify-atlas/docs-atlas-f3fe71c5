@@ -1,0 +1,500 @@
+---
+title: Installation
+description: Set up CampusBite locally for development with complete step-by-step instructions
+---
+
+This guide will help you set up CampusBite on your local machine for development purposes. The application consists of a React frontend, Node.js backend, and PostgreSQL database.
+
+## Prerequisites
+
+Before you begin, ensure you have the following installed:
+
+- **Node.js** >= 18.0.0 ([Download](https://nodejs.org/))
+- **npm** >= 9.0.0 (comes with Node.js)
+- **PostgreSQL** >= 14.0 ([Download](https://www.postgresql.org/download/))
+- **Git** for cloning the repository
+- **Gmail account** with App Password for email functionality (optional for development)
+
+<Note>
+  You can use a hosted PostgreSQL database like [Supabase](https://supabase.com/), [Neon](https://neon.tech/), or [Railway](https://railway.app/) instead of installing PostgreSQL locally.
+</Note>
+
+## Installation steps
+
+<Steps>
+  <Step title="Clone the repository">
+    Clone the CampusBite repository to your local machine:
+
+    ```bash
+    git clone https://github.com/your-org/campusbite.git
+    cd campusbite
+    ```
+  </Step>
+
+  <Step title="Set up the database">
+    Create a new PostgreSQL database named `campusbite`:
+
+    ```sql
+    CREATE DATABASE campusbite;
+    ```
+
+    <Info>
+      Database tables are automatically created on the first server start. You don't need to run any migration scripts.
+    </Info>
+
+    If using a hosted database, copy your connection string. It should look like:
+
+    ```text
+    postgresql://username:password@host:5432/database_name
+    ```
+  </Step>
+
+  <Step title="Configure environment variables">
+    The backend requires environment variables for database connection, JWT secrets, and email configuration.
+
+    Create a `.env` file in the `backend` directory:
+
+    ```bash
+    touch backend/.env
+    ```
+
+    Add the following configuration (replace with your actual values):
+
+    ```env backend/.env
+    # Server Configuration
+    PORT=5000
+    NODE_ENV=development
+
+    # Database
+    DATABASE_URL=postgresql://username:password@localhost:5432/campusbite
+
+    # JWT Secrets (generate random strings)
+    JWT_SECRET=your-super-secret-jwt-key-min-32-chars
+    JWT_REFRESH_SECRET=your-super-secret-refresh-key-min-32-chars
+    JWT_EXPIRES_IN=1h
+    JWT_REFRESH_EXPIRES_IN=7d
+
+    # Email Configuration (Gmail SMTP)
+    SMTP_HOST=smtp.gmail.com
+    SMTP_PORT=587
+    SMTP_USER=your-email@gmail.com
+    SMTP_PASS=your-gmail-app-password
+    FROM_EMAIL=noreply@campusbite.com
+
+    # Frontend URL
+    FRONTEND_URL=http://localhost:5173
+    ```
+
+    <Warning>
+      Never commit your `.env` file to version control. It contains sensitive credentials.
+    </Warning>
+  </Step>
+
+  <Step title="Generate JWT secrets">
+    Generate secure random strings for `JWT_SECRET` and `JWT_REFRESH_SECRET`:
+
+    ```bash
+    # On Linux/macOS
+    openssl rand -base64 32
+
+    # On Windows (PowerShell)
+    -join ((65..90) + (97..122) + (48..57) | Get-Random -Count 32 | % {[char]$_})
+    ```
+
+    Copy the generated strings into your `.env` file.
+  </Step>
+
+  <Step title="Set up Gmail App Password (optional)">
+    For email verification and password reset functionality, you need a Gmail App Password:
+
+    1. Go to your [Google Account](https://myaccount.google.com/)
+    2. Navigate to **Security** > **2-Step Verification**
+    3. Scroll down to **App passwords**
+    4. Select **Mail** and generate a new password
+    5. Copy the 16-character password and paste it as `SMTP_PASS` in your `.env` file
+
+    <Note>
+      You can skip this step during development. Email sending will fail, but the application will still work for testing other features.
+    </Note>
+  </Step>
+
+  <Step title="Configure frontend environment (optional)">
+    The frontend uses Vite's proxy configuration to forward API requests to the backend. No additional environment variables are required.
+
+    If you need to customize the backend URL, create a `.env` file in the `frontend` directory:
+
+    ```env frontend/.env
+    VITE_BACKEND_URL=http://localhost:5000
+    ```
+  </Step>
+
+  <Step title="Install dependencies">
+    Install dependencies for both frontend and backend:
+
+    <CodeGroup>
+      ```bash All at once
+      npm run install:all
+      ```
+
+      ```bash Backend only
+      cd backend
+      npm install
+      ```
+
+      ```bash Frontend only
+      cd frontend
+      npm install
+      ```
+    </CodeGroup>
+
+    The backend uses these key dependencies:
+
+    ```json backend/package.json
+    {
+      "dependencies": {
+        "express": "^5.2.1",
+        "mongoose": "^8.12.1",
+        "bcryptjs": "^3.0.3",
+        "jsonwebtoken": "^9.0.3",
+        "nodemailer": "^8.0.1",
+        "cors": "^2.8.6",
+        "helmet": "^8.1.0",
+        "express-rate-limit": "^8.2.1",
+        "multer": "^2.0.2",
+        "zod": "^4.3.6"
+      }
+    }
+    ```
+
+    The frontend uses React 19 with Vite and Tailwind CSS v4:
+
+    ```json frontend/package.json
+    {
+      "dependencies": {
+        "react": "^19.2.0",
+        "react-dom": "^19.2.0",
+        "react-router-dom": "^7.13.0",
+        "axios": "^1.13.5",
+        "tailwindcss": "^4.1.18",
+        "lucide-react": "^0.564.0",
+        "sonner": "^2.0.7"
+      }
+    }
+    ```
+  </Step>
+
+  <Step title="Start the development servers">
+    Open two terminal windows and start both servers:
+
+    <CodeGroup>
+      ```bash Terminal 1 - Backend
+      cd backend
+      npm run dev
+      ```
+
+      ```bash Terminal 2 - Frontend
+      cd frontend
+      npm run dev
+      ```
+
+      ```bash Single command (root directory)
+      npm run dev
+      ```
+    </CodeGroup>
+
+    You should see output similar to:
+
+    ```text Backend
+    [Startup] Database initialized successfully.
+    CampusBite server running on port 5000 in development mode
+    ```
+
+    ```text Frontend
+      VITE v7.3.1  ready in 432 ms
+
+      ➜  Local:   http://localhost:5173/
+      ➜  Network: use --host to expose
+      ➜  press h + enter to show help
+    ```
+  </Step>
+
+  <Step title="Verify the installation">
+    Open your browser and navigate to `http://localhost:5173`. You should see the CampusBite landing page.
+
+    Test the API health endpoint:
+
+    ```bash
+    curl http://localhost:5000/api/health
+    ```
+
+    Expected response:
+
+    ```json
+    {
+      "success": true,
+      "message": "CampusBite API is running.",
+      "timestamp": "2026-03-04T09:30:00.000Z"
+    }
+    ```
+  </Step>
+</Steps>
+
+## Project structure
+
+Understanding the project structure will help you navigate the codebase:
+
+```text
+CampusBite/
+├── backend/
+│   ├── src/
+│   │   ├── config/          # Database and email configuration
+│   │   │   ├── db.js
+│   │   │   ├── email.js
+│   │   │   ├── preflight.js
+│   │   │   └── uploads.js
+│   │   ├── controllers/     # Route handlers for auth, orders, stores, etc.
+│   │   │   ├── authController.js
+│   │   │   ├── orderController.js
+│   │   │   ├── storeController.js
+│   │   │   └── ...
+│   │   ├── middleware/      # Auth, validation, error handling
+│   │   │   ├── authMiddleware.js
+│   │   │   ├── errorHandler.js
+│   │   │   └── ...
+│   │   ├── models/          # MongoDB schemas
+│   │   ├── routes/          # Express route definitions
+│   │   │   ├── authRoutes.js
+│   │   │   ├── orderRoutes.js
+│   │   │   ├── storeRoutes.js
+│   │   │   └── ...
+│   │   ├── services/        # Email, OTP, payment services
+│   │   ├── utils/           # Helper functions
+│   │   └── index.js         # Application entry point
+│   ├── .env                 # Environment variables (not in git)
+│   └── package.json
+├── frontend/
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── ui/          # Reusable UI components
+│   │   │   ├── layout/      # Navbar, Layout
+│   │   │   └── shared/      # StatusBadge, OrderTimeline
+│   │   ├── contexts/        # AuthContext, CartContext
+│   │   ├── hooks/           # Custom React hooks
+│   │   ├── lib/             # API client, validators
+│   │   ├── pages/
+│   │   │   ├── auth/        # Login, Register, Verify
+│   │   │   ├── student/     # Stores, Menu, Cart, Orders
+│   │   │   └── store/       # Dashboard, Orders, Menu
+│   │   ├── App.jsx          # Route definitions
+│   │   └── main.jsx         # Application entry point
+│   ├── .env                 # Frontend environment variables (optional)
+│   └── package.json
+├── dev.js                   # Concurrent dev server script
+├── package.json             # Root package with scripts
+└── README.md
+```
+
+## Available scripts
+
+Run these commands from the root directory:
+
+| Script | Description |
+|--------|-------------|
+| `npm run dev` | Start both frontend and backend concurrently |
+| `npm run dev:backend` | Start backend server only |
+| `npm run dev:frontend` | Start frontend dev server only |
+| `npm run install:all` | Install dependencies for root, backend, and frontend |
+
+Backend scripts (run from `backend/` directory):
+
+| Script | Description |
+|--------|-------------|
+| `npm run dev` | Start backend with nodemon (auto-reload) |
+| `npm start` | Start backend in production mode |
+
+Frontend scripts (run from `frontend/` directory):
+
+| Script | Description |
+|--------|-------------|
+| `npm run dev` | Start Vite dev server |
+| `npm run build` | Build for production |
+| `npm run preview` | Preview production build |
+
+## Environment variables reference
+
+### Backend environment variables
+
+| Variable | Description | Required | Default |
+|----------|-------------|----------|----------|
+| `PORT` | Backend server port | No | `5000` |
+| `NODE_ENV` | Environment mode | No | `development` |
+| `DATABASE_URL` | PostgreSQL connection string | **Yes** | - |
+| `JWT_SECRET` | JWT signing secret (min 32 chars) | **Yes** | - |
+| `JWT_REFRESH_SECRET` | Refresh token secret (min 32 chars) | **Yes** | - |
+| `JWT_EXPIRES_IN` | Access token expiry time | No | `1h` |
+| `JWT_REFRESH_EXPIRES_IN` | Refresh token expiry time | No | `7d` |
+| `SMTP_HOST` | SMTP server hostname | No | `smtp.gmail.com` |
+| `SMTP_PORT` | SMTP server port | No | `587` |
+| `SMTP_USER` | SMTP email address | No | - |
+| `SMTP_PASS` | SMTP password/app password | No | - |
+| `FROM_EMAIL` | Sender email address | No | - |
+| `FRONTEND_URL` | Frontend URL for email links | No | `http://localhost:5173` |
+| `UPLOAD_DIR` | Directory for uploaded files | No | `backend/public/uploads` |
+
+### Frontend environment variables
+
+| Variable | Description | Required | Default |
+|----------|-------------|----------|----------|
+| `VITE_BACKEND_URL` | Backend API URL | No | `http://localhost:5000` |
+
+<Info>
+  Vite automatically exposes environment variables prefixed with `VITE_` to the client-side code.
+</Info>
+
+## Troubleshooting
+
+### Database connection fails
+
+**Error**: `Connection refused` or `Authentication failed`
+
+**Solution**:
+
+1. Ensure PostgreSQL is running:
+
+   ```bash
+   # Check PostgreSQL status
+   # macOS
+   brew services list
+
+   # Linux
+   sudo systemctl status postgresql
+
+   # Windows
+   # Check Services app for PostgreSQL service
+   ```
+
+2. Verify your `DATABASE_URL` in `.env`:
+   - Check username, password, host, and database name
+   - Ensure the database exists: `psql -l`
+
+3. Test the connection manually:
+
+   ```bash
+   psql "postgresql://username:password@localhost:5432/campusbite"
+   ```
+
+### Email not sending
+
+**Error**: `Invalid login` or `SMTP error`
+
+**Solution**:
+
+1. Enable 2-Step Verification on your Google account
+2. Generate an App Password (not your regular Gmail password)
+3. Verify `SMTP_USER` and `SMTP_PASS` in `.env`
+4. Check that `SMTP_PORT` is `587` (not `465`)
+
+### Frontend can't reach backend
+
+**Error**: `Network Error` or `ERR_CONNECTION_REFUSED`
+
+**Solution**:
+
+1. Ensure backend is running on port 5000:
+
+   ```bash
+   curl http://localhost:5000/api/health
+   ```
+
+2. Check Vite proxy configuration in `frontend/vite.config.js`:
+
+   ```javascript
+   export default defineConfig({
+     server: {
+       proxy: {
+         '/api': {
+           target: 'http://localhost:5000',
+           changeOrigin: true
+         }
+       }
+     }
+   })
+   ```
+
+3. Clear browser cache and restart the frontend dev server
+
+### Port already in use
+
+**Error**: `EADDRINUSE: address already in use :::5000`
+
+**Solution**:
+
+1. Find and kill the process using the port:
+
+   ```bash
+   # macOS/Linux
+   lsof -ti:5000 | xargs kill -9
+
+   # Windows
+   netstat -ano | findstr :5000
+   taskkill /PID <PID> /F
+   ```
+
+2. Or change the port in `backend/.env`:
+
+   ```env
+   PORT=5001
+   ```
+
+### JWT token errors
+
+**Error**: `jwt malformed` or `invalid signature`
+
+**Solution**:
+
+1. Ensure `JWT_SECRET` and `JWT_REFRESH_SECRET` are properly set in `.env`
+2. Clear browser cookies and local storage
+3. Log out and log back in to get a fresh token
+
+### Module not found errors
+
+**Error**: `Cannot find module 'express'` or similar
+
+**Solution**:
+
+1. Delete `node_modules` and reinstall:
+
+   ```bash
+   # Backend
+   cd backend
+   rm -rf node_modules package-lock.json
+   npm install
+
+   # Frontend
+   cd frontend
+   rm -rf node_modules package-lock.json
+   npm install
+   ```
+
+2. Verify Node.js version:
+
+   ```bash
+   node --version  # Should be >= 18.0.0
+   ```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Create an account and place your first order
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/auth/register">
+    Explore all available API endpoints
+  </Card>
+  <Card title="Authentication" icon="lock" href="/features/authentication">
+    Learn about JWT authentication flow
+  </Card>
+  <Card title="Deployment" icon="cloud" href="/deployment/fly-io">
+    Deploy CampusBite to production
+  </Card>
+</CardGroup>

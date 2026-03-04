@@ -1,0 +1,268 @@
+---
+title: Database setup
+description: Configure MongoDB for CampusBite with connection strings, database initialization, and troubleshooting guidance.
+---
+
+CampusBite uses MongoDB with Mongoose ODM for data persistence. You can use MongoDB Atlas (cloud) or a self-hosted instance.
+
+## Connection string
+
+CampusBite reads the MongoDB connection string from environment variables:
+
+```javascript backend/src/config/db.js
+const uri = process.env.MONGODB_URI || process.env.DATABASE_URL
+```
+
+You can set either `MONGODB_URI` or `DATABASE_URL`. If both are set, `MONGODB_URI` takes precedence.
+
+## MongoDB Atlas (cloud)
+
+<Steps>
+  <Step title="Create a free cluster">
+    Sign up at [mongodb.com/cloud/atlas](https://www.mongodb.com/cloud/atlas) and create a free M0 cluster.
+  </Step>
+  
+  <Step title="Configure network access">
+    Add your IP address to the IP Access List:
+    - Go to **Network Access** → **Add IP Address**
+    - For development: Click **Allow Access from Anywhere** (0.0.0.0/0)
+    - For production: Add your server's IP or use VPC peering
+  </Step>
+  
+  <Step title="Create a database user">
+    Go to **Database Access** and create a new user with read/write permissions to your database.
+  </Step>
+  
+  <Step title="Get the connection string">
+    Click **Connect** → **Connect your application** and copy the connection string:
+    
+    ```bash
+    mongodb+srv://username:password@cluster.mongodb.net/campusbite?retryWrites=true&w=majority
+    ```
+    
+    Replace `username` and `password` with your database credentials.
+  </Step>
+  
+  <Step title="Set the environment variable">
+    ```bash
+    export MONGODB_URI="mongodb+srv://username:password@cluster.mongodb.net/campusbite"
+    ```
+  </Step>
+</Steps>
+
+### DNS resolution issues
+
+If you encounter SRV DNS lookup errors (common in restrictive networks):
+
+```
+querySrv ECONNREFUSED _mongodb._tcp.cluster.mongodb.net
+```
+
+Switch to a non-SRV connection string:
+
+<CodeGroup>
+```bash SRV (may fail)
+mongodb+srv://username:password@cluster.mongodb.net/campusbite
+```
+
+```bash Non-SRV (recommended for restrictive networks)
+mongodb://username:password@cluster-shard-00-00.mongodb.net:27017,cluster-shard-00-01.mongodb.net:27017,cluster-shard-00-02.mongodb.net:27017/campusbite?ssl=true&replicaSet=atlas-xyz&authSource=admin
+```
+</CodeGroup>
+
+You can find the non-SRV connection string in Atlas under **Connect** → **Connect your application** → **Connection String Only** → **Standard (non-SRV)**.
+
+## Self-hosted MongoDB
+
+For local development or self-hosted production:
+
+<Steps>
+  <Step title="Install MongoDB">
+    Follow the [official installation guide](https://docs.mongodb.com/manual/installation/) for your platform.
+    
+    <CodeGroup>
+    ```bash macOS
+    brew tap mongodb/brew
+    brew install mongodb-community
+    brew services start mongodb-community
+    ```
+    
+    ```bash Ubuntu
+    sudo apt-get install -y mongodb-org
+    sudo systemctl start mongod
+    sudo systemctl enable mongod
+    ```
+    
+    ```bash Docker
+    docker run -d -p 27017:27017 --name mongodb \
+      -e MONGO_INITDB_ROOT_USERNAME=admin \
+      -e MONGO_INITDB_ROOT_PASSWORD=password \
+      mongo:7
+    ```
+    </CodeGroup>
+  </Step>
+  
+  <Step title="Create a database and user">
+    ```bash
+    mongosh
+    ```
+    
+    ```javascript
+    use campusbite
+    db.createUser({
+      user: "campusbite_user",
+      pwd: "secure_password",
+      roles: [{ role: "readWrite", db: "campusbite" }]
+    })
+    ```
+  </Step>
+  
+  <Step title="Set the connection string">
+    ```bash
+    # No authentication
+    export MONGODB_URI="mongodb://localhost:27017/campusbite"
+    
+    # With authentication
+    export MONGODB_URI="mongodb://campusbite_user:secure_password@localhost:27017/campusbite"
+    ```
+  </Step>
+</Steps>
+
+## Database initialization
+
+CampusBite automatically connects to MongoDB on startup:
+
+```javascript backend/src/config/db.js
+export const initDatabase = async () => {
+  const uri = getMongoUri()
+  const dbName = process.env.MONGODB_DB_NAME || undefined
+
+  try {
+    await mongoose.connect(uri, {
+      dbName,
+      serverSelectionTimeoutMS: 5000,
+    })
+  } catch (error) {
+    // Error handling with helpful guidance
+  }
+}
+```
+
+Key behaviors:
+- **Connection timeout**: 5 seconds
+- **Database name**: Extracted from connection string or set via `MONGODB_DB_NAME`
+- **Error guidance**: Provides specific troubleshooting steps for SRV DNS failures
+
+## Specifying database name
+
+You can specify the database name in two ways:
+
+<Tabs>
+  <Tab title="In connection string">
+    ```bash
+    MONGODB_URI="mongodb://localhost:27017/campusbite"
+    #                                        ^^^^^^^^^^^
+    #                                        database name
+    ```
+  </Tab>
+  
+  <Tab title="Via environment variable">
+    ```bash
+    MONGODB_URI="mongodb://localhost:27017"
+    MONGODB_DB_NAME="campusbite"
+    ```
+  </Tab>
+</Tabs>
+
+If both are specified, `MONGODB_DB_NAME` takes precedence.
+
+## Connection validation
+
+The server performs preflight checks at startup:
+
+```javascript backend/src/config/preflight.js
+const REQUIRED_ENV_VARS = [
+  "JWT_SECRET",
+  "JWT_REFRESH_SECRET",
+  "MONGODB_URI",
+  "FRONTEND_URL",
+];
+```
+
+If `MONGODB_URI` is missing or empty, the server will exit with:
+
+```
+[Startup] Missing required environment variables: MONGODB_URI
+```
+
+## Troubleshooting
+
+### Connection refused
+
+```
+MongoServerSelectionError: connect ECONNREFUSED 127.0.0.1:27017
+```
+
+**Solution**: Ensure MongoDB is running:
+
+```bash
+# macOS
+brew services list | grep mongodb
+
+# Linux
+sudo systemctl status mongod
+
+# Docker
+docker ps | grep mongo
+```
+
+### Authentication failed
+
+```
+MongoServerError: Authentication failed
+```
+
+**Solution**: Verify credentials in your connection string:
+
+```bash
+# Test connection with mongosh
+mongosh "mongodb://username:password@host:27017/campusbite"
+```
+
+### SRV DNS lookup failed
+
+```
+querySrv ECONNREFUSED _mongodb._tcp.cluster.mongodb.net
+```
+
+**Solution**: The application provides automatic guidance:
+
+```
+SRV DNS lookup failed. Your network/DNS is blocking Atlas SRV resolution.
+Use Atlas non-SRV connection string (mongodb://...) or fix DNS access.
+```
+
+Switch to a non-SRV connection string (see [DNS resolution issues](#dns-resolution-issues)).
+
+### Database timeout
+
+```
+MongoServerSelectionError: Server selection timed out after 5000 ms
+```
+
+**Solution**:
+1. Check network connectivity to your MongoDB host
+2. Verify firewall rules allow outbound connections on port 27017
+3. For Atlas, ensure your IP is whitelisted in Network Access
+
+## Collections
+
+CampusBite uses the following MongoDB collections (created automatically via Mongoose schemas):
+
+- `users` - User accounts (students, vendors, admins)
+- `stores` - Vendor stores and menus
+- `menuitems` - Menu items for each store
+- `orders` - Order history and status
+- `notifications` - Real-time notifications
+
+No manual schema setup is required. Mongoose creates collections on first document insert.

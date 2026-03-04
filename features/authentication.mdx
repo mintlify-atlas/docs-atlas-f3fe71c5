@@ -1,0 +1,472 @@
+---
+title: Authentication
+description: Learn how CampusBite implements secure authentication with role-based access, email verification, and JWT tokens.
+---
+
+CampusBite uses a comprehensive authentication system that handles user registration, login, email verification, and password recovery. The system supports three user roles: students, faculty, and store employees.
+
+## User roles and validation
+
+The platform enforces strict role-based validation during registration:
+
+- **Students**: Must use a `christuniversity.in` email (including subdomains) and provide a register number
+- **Faculty**: Must use a `christuniversity.in` email and provide an employee ID
+- **Store employees**: Must provide an employee ID, phone number, store name, and valid UPI ID
+
+<Note>
+The system validates that Christ University emails use the correct domain (`christuniversity.in`) or approved subdomains to ensure only authorized campus users can register.
+</Note>
+
+## Registration flow
+
+When you register a new user, the system performs multiple validation steps and creates necessary records.
+
+<Steps>
+  <Step title="Validate input data">
+    The registration schema validates all required fields using Zod. Password requirements include:
+    - Minimum 8 characters
+    - At least one uppercase letter
+    - At least one lowercase letter
+    - At least one digit
+  </Step>
+  
+  <Step title="Check for existing users">
+    The system checks if an account with the provided email already exists to prevent duplicates.
+  </Step>
+  
+  <Step title="Hash password and generate token">
+    Passwords are hashed using bcrypt with a cost factor of 12. A unique email verification token is generated using crypto.
+  </Step>
+  
+  <Step title="Create user and store records">
+    For store employees, both a User and Store record are created. If store creation fails, the user record is rolled back.
+  </Step>
+  
+  <Step title="Send verification email">
+    A verification email is sent to the user with a unique token link.
+  </Step>
+</Steps>
+
+### Registration code example
+
+```javascript backend/src/controllers/authController.js
+export const register = async (req, res, next) => {
+  try {
+    const {
+      name,
+      email,
+      password,
+      role,
+      registerNumber,
+      employeeId,
+      phoneNumber,
+      storeName,
+      storeUpiId,
+    } = req.body;
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // Check for existing user
+    const existingUser = await User.findOne({ email: normalizedEmail }).lean();
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        message: "An account with this email already exists.",
+      });
+    }
+
+    // Hash password and create verification token
+    const hashedPassword = await bcrypt.hash(password, 12);
+    const emailVerificationToken = crypto.randomBytes(32).toString("hex");
+
+    // Create user
+    const user = await User.create({
+      name: name.trim(),
+      email: normalizedEmail,
+      password: hashedPassword,
+      role,
+      register_number: registerNumber || null,
+      employee_id: employeeId || null,
+      phone_number: phoneNumber || null,
+      email_verification_token: emailVerificationToken,
+    });
+
+    // Create store for store employees
+    if (role === "store_employee") {
+      try {
+        await Store.create({
+          name: storeName.trim(),
+          upi_id: storeUpiId.trim().toLowerCase(),
+          owner_id: user._id,
+        });
+      } catch (storeError) {
+        await User.deleteOne({ _id: user._id });
+        throw storeError;
+      }
+    }
+
+    // Send verification email
+    await sendVerificationEmail(user.email, user.name, emailVerificationToken);
+
+    res.status(201).json({
+      success: true,
+      message: "Registration successful. Please check your email to verify your account.",
+      data: sanitizeUser(user),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+```
+
+## Email verification
+
+Users must verify their email before they can log in. The verification process uses a unique token stored in the database.
+
+<CodeGroup>
+```javascript Verify email endpoint
+export const verifyEmail = async (req, res, next) => {
+  try {
+    const { token } = req.params;
+
+    const user = await User.findOne({ email_verification_token: token });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired verification token.",
+      });
+    }
+
+    // Idempotent - if already verified, return success
+    if (user.is_email_verified) {
+      return res.json({
+        success: true,
+        message: "Email already verified. You can log in.",
+      });
+    }
+
+    user.is_email_verified = true;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: "Email verified successfully. You can now log in.",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+```
+
+```javascript User schema
+const userSchema = new mongoose.Schema({
+  name: { type: String, required: true, trim: true },
+  email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+  password: { type: String, required: true },
+  role: { type: String, enum: ['student', 'faculty', 'store_employee'], required: true },
+  is_email_verified: { type: Boolean, default: false },
+  email_verification_token: { type: String, default: null },
+  register_number: { type: String, default: null },
+  employee_id: { type: String, default: null },
+  phone_number: { type: String, default: null },
+});
+```
+</CodeGroup>
+
+## Login and JWT tokens
+
+The login system uses a dual-token approach with access tokens and refresh tokens for enhanced security.
+
+### Token generation
+
+When you log in successfully, the system generates two JWT tokens:
+
+```javascript backend/src/controllers/authController.js
+const generateTokens = (userId) => {
+  const accessToken = jwt.sign({ userId }, process.env.JWT_SECRET, {
+    expiresIn: process.env.JWT_EXPIRES_IN || "1h",
+  });
+
+  const refreshToken = jwt.sign({ userId }, process.env.JWT_REFRESH_SECRET, {
+    expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "7d",
+  });
+
+  return { accessToken, refreshToken };
+};
+```
+
+<Accordion title="Token expiration times">
+- **Access token**: 1 hour (default)
+- **Refresh token**: 7 days (default)
+
+The refresh token is stored in the database and can be used to obtain a new access token without requiring the user to log in again.
+</Accordion>
+
+### Login flow
+
+```javascript backend/src/controllers/authController.js
+export const login = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // Find user
+    const user = await User.findOne({ email: normalizedEmail });
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password.",
+      });
+    }
+
+    // Verify password
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password.",
+      });
+    }
+
+    // Check email verification
+    if (!user.is_email_verified) {
+      return res.status(403).json({
+        success: false,
+        message: "Please verify your email before logging in.",
+      });
+    }
+
+    // Generate tokens
+    const userId = user._id.toString();
+    const { accessToken, refreshToken } = generateTokens(userId);
+
+    // Store refresh token
+    await RefreshToken.create({
+      user_id: user._id,
+      token: refreshToken,
+      expires_at: toDateFromDays(7),
+    });
+
+    res.json({
+      success: true,
+      message: "Login successful.",
+      data: {
+        user: sanitizeUser(user),
+        accessToken,
+        refreshToken,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+```
+
+<Warning>
+The login endpoint returns generic error messages for invalid credentials to prevent user enumeration attacks. Both invalid email and invalid password return the same "Invalid email or password" message.
+</Warning>
+
+## Token refresh mechanism
+
+When an access token expires, you can use the refresh token to obtain a new pair of tokens without requiring the user to log in again.
+
+```javascript backend/src/controllers/authController.js
+export const refreshToken = async (req, res, next) => {
+  try {
+    const { refreshToken: token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: "Refresh token is required.",
+      });
+    }
+
+    // Verify token
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
+    } catch {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid refresh token.",
+      });
+    }
+
+    // Check if token exists in database
+    const tokenDoc = await RefreshToken.findOne({
+      token,
+      user_id: decoded.userId,
+      expires_at: { $gt: new Date() },
+    });
+
+    if (!tokenDoc) {
+      return res.status(401).json({
+        success: false,
+        message: "Refresh token not found or expired.",
+      });
+    }
+
+    // Delete old token
+    await RefreshToken.deleteOne({ _id: tokenDoc._id });
+
+    // Generate new tokens
+    const { accessToken: newAccessToken, refreshToken: newRefreshToken } =
+      generateTokens(decoded.userId);
+
+    // Store new refresh token
+    await RefreshToken.create({
+      user_id: decoded.userId,
+      token: newRefreshToken,
+      expires_at: toDateFromDays(7),
+    });
+
+    res.json({
+      success: true,
+      message: "Tokens refreshed successfully.",
+      data: {
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+```
+
+## Password recovery
+
+Users can reset their password using a secure token-based flow.
+
+<Steps>
+  <Step title="Request password reset">
+    User submits their email address. The system generates a unique reset token that expires in 1 hour.
+  </Step>
+  
+  <Step title="Receive reset email">
+    An email with a reset link containing the token is sent to the user.
+  </Step>
+  
+  <Step title="Submit new password">
+    User clicks the link, enters a new password, and submits the form.
+  </Step>
+  
+  <Step title="Invalidate all sessions">
+    After password reset, all existing refresh tokens are deleted, forcing the user to log in again on all devices.
+  </Step>
+</Steps>
+
+<CodeGroup>
+```javascript Forgot password
+export const forgotPassword = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await User.findOne({ email: normalizedEmail });
+
+    // Always return success to prevent user enumeration
+    if (!user) {
+      return res.json({
+        success: true,
+        message: "If an account with that email exists, a password reset link has been sent.",
+      });
+    }
+
+    // Generate reset token (expires in 1 hour)
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    const resetExpires = new Date();
+    resetExpires.setHours(resetExpires.getHours() + 1);
+
+    user.password_reset_token = resetToken;
+    user.password_reset_expires = resetExpires;
+    await user.save();
+
+    await sendPasswordResetEmail(user.email, user.name, resetToken);
+
+    res.json({
+      success: true,
+      message: "If an account with that email exists, a password reset link has been sent.",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+```
+
+```javascript Reset password
+export const resetPassword = async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    // Find user with valid token
+    const user = await User.findOne({
+      password_reset_token: token,
+      password_reset_expires: { $gt: new Date() },
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired reset token.",
+      });
+    }
+
+    // Update password and clear reset token
+    user.password = await bcrypt.hash(password, 12);
+    user.password_reset_token = null;
+    user.password_reset_expires = null;
+    await user.save();
+
+    // Invalidate all refresh tokens
+    await RefreshToken.deleteMany({ user_id: user._id });
+
+    res.json({
+      success: true,
+      message: "Password reset successful. Please log in with your new password.",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+```
+</CodeGroup>
+
+## Data sanitization
+
+Before returning user data to the client, sensitive fields are removed:
+
+```javascript backend/src/controllers/authController.js
+const sanitizeUser = (userDoc) => {
+  const user = formatUser(userDoc);
+  if (!user) return null;
+
+  delete user.password;
+  delete user.email_verification_token;
+  delete user.password_reset_token;
+  delete user.password_reset_expires;
+  delete user.__v;
+
+  return user;
+};
+```
+
+<Note>
+The sanitization function ensures that password hashes and security tokens are never exposed in API responses, even if the full user document is accidentally passed to the response.
+</Note>
+
+## API endpoints
+
+Here's a summary of the authentication endpoints:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/auth/register` | POST | Register a new user account |
+| `/api/auth/login` | POST | Log in with email and password |
+| `/api/auth/verify-email/:token` | GET | Verify email address |
+| `/api/auth/forgot-password` | POST | Request password reset |
+| `/api/auth/reset-password/:token` | POST | Reset password with token |
+| `/api/auth/refresh` | POST | Refresh access token |
+| `/api/auth/logout` | POST | Log out and invalidate refresh token |

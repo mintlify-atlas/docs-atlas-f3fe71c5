@@ -1,0 +1,407 @@
+---
+title: Deploy on Fly.io
+description: Deploy CampusBite to Fly.io with persistent storage, automatic scaling, and zero-downtime deployments.
+---
+
+Fly.io is a platform for running full-stack apps globally. CampusBite includes a pre-configured `fly.toml` for easy deployment.
+
+## Prerequisites
+
+<Steps>
+  <Step title="Install flyctl">
+    Install the Fly.io CLI:
+    
+    <CodeGroup>
+    ```bash macOS/Linux
+    curl -L https://fly.io/install.sh | sh
+    ```
+    
+    ```bash Windows (PowerShell)
+    iwr https://fly.io/install.ps1 -useb | iex
+    ```
+    </CodeGroup>
+  </Step>
+  
+  <Step title="Sign up and log in">
+    ```bash
+    fly auth signup
+    # or if you already have an account
+    fly auth login
+    ```
+  </Step>
+</Steps>
+
+## Deployment steps
+
+<Steps>
+  <Step title="Set your app name">
+    Edit `fly.toml` and change the app name:
+    
+    ```toml fly.toml
+    app = 'your-unique-app-name'
+    primary_region = 'bom'  # or your preferred region
+    ```
+    
+    <Warning>
+      App names must be globally unique across all Fly.io users. Choose a name like `campusbite-yourschool` or `cb-yourname`.
+    </Warning>
+  </Step>
+  
+  <Step title="Create the app and volume">
+    Run these commands once:
+    
+    ```bash
+    fly apps create your-unique-app-name
+    fly volumes create db --size 1 --region bom
+    ```
+    
+    The volume is mounted at `/data` (configured in `fly.toml`) and stores:
+    - Uploaded files (menu images, store logos)
+    - Any persistent data needed by the application
+  </Step>
+  
+  <Step title="Set secrets">
+    Configure environment variables as Fly.io secrets:
+    
+    ```bash
+    fly secrets set \
+      JWT_SECRET=$(openssl rand -base64 48) \
+      JWT_REFRESH_SECRET=$(openssl rand -base64 48) \
+      MONGODB_URI="mongodb+srv://username:password@cluster.mongodb.net/campusbite" \
+      FRONTEND_URL="https://your-unique-app-name.fly.dev" \
+      APP_URL="https://your-unique-app-name.fly.dev"
+    ```
+    
+    Optional SMTP secrets for email:
+    
+    ```bash
+    fly secrets set \
+      SMTP_HOST=smtp.gmail.com \
+      SMTP_PORT=587 \
+      SMTP_USER=your-email@gmail.com \
+      SMTP_PASS=your-app-password \
+      FROM_EMAIL=noreply@campusbite.example.com
+    ```
+    
+    Optional checkout token secret:
+    
+    ```bash
+    fly secrets set CHECKOUT_TOKEN_SECRET=$(openssl rand -base64 48)
+    ```
+  </Step>
+  
+  <Step title="Deploy">
+    ```bash
+    fly deploy
+    ```
+    
+    This will:
+    1. Build the Docker image (multi-stage build)
+    2. Push the image to Fly.io's registry
+    3. Create a new VM with your app
+    4. Run health checks
+    5. Route traffic to the new VM
+  </Step>
+  
+  <Step title="Verify deployment">
+    ```bash
+    fly status
+    fly logs
+    ```
+    
+    Check the health endpoint:
+    
+    ```bash
+    curl https://your-unique-app-name.fly.dev/api/health
+    ```
+    
+    Expected response:
+    
+    ```json
+    {
+      "success": true,
+      "message": "CampusBite API is running.",
+      "timestamp": "2026-03-04T10:30:45.123Z"
+    }
+    ```
+  </Step>
+</Steps>
+
+## Configuration reference
+
+CampusBite's `fly.toml` is optimized for low-traffic campus deployments:
+
+```toml fly.toml
+app = 'campus-bite'
+primary_region = 'bom'
+
+[build]
+
+[env]
+  UPLOAD_DIR = "/data/uploads"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+[[vm]]
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1
+
+[mounts]
+  source = "db"
+  destination = "/data"
+```
+
+### Key settings
+
+<ParamField path="app" type="string">
+  Your unique app name. Must be globally unique across Fly.io.
+</ParamField>
+
+<ParamField path="primary_region" type="string" default="bom">
+  Region code for your primary deployment. Common options:
+  - `bom` - Mumbai, India
+  - `sin` - Singapore
+  - `iad` - Ashburn, Virginia (US East)
+  - `lhr` - London, UK
+  
+  See [Fly.io regions](https://fly.io/docs/reference/regions/) for the full list.
+</ParamField>
+
+<ParamField path="[env].UPLOAD_DIR" type="string" default="/data/uploads">
+  Directory for uploaded files. Maps to the mounted volume.
+</ParamField>
+
+<ParamField path="[http_service].internal_port" type="number" default="8080">
+  Port your app listens on (must match `PORT` in Dockerfile).
+</ParamField>
+
+<ParamField path="[http_service].auto_stop_machines" type="string" default="stop">
+  Automatically stops machines when not receiving traffic. Ideal for low-traffic campus apps.
+</ParamField>
+
+<ParamField path="[http_service].auto_start_machines" type="boolean" default="true">
+  Automatically starts machines when receiving traffic. Enables zero-config scaling.
+</ParamField>
+
+<ParamField path="[http_service].min_machines_running" type="number" default="0">
+  Minimum machines to keep running. Set to `0` for cost savings on low-traffic apps. Increase to `1` for always-on availability.
+</ParamField>
+
+<ParamField path="[[vm]].memory" type="string" default="1gb">
+  RAM allocated per VM. Options: `256mb`, `512mb`, `1gb`, `2gb`, `4gb`, `8gb`.
+</ParamField>
+
+<ParamField path="[mounts].source" type="string">
+  Volume name (must match the volume created with `fly volumes create`).
+</ParamField>
+
+<ParamField path="[mounts].destination" type="string">
+  Mount path inside the container. CampusBite expects `/data`.
+</ParamField>
+
+## Managing your deployment
+
+### View logs
+
+```bash
+# Live tail
+fly logs
+
+# Filter by level
+fly logs --level error
+```
+
+### Scale resources
+
+```bash
+# Increase memory
+fly scale memory 2048
+
+# Always keep 1 machine running
+fly scale count 1
+
+# Scale to zero when idle (default)
+fly scale count 0
+```
+
+### Update secrets
+
+```bash
+# Update a single secret
+fly secrets set MONGODB_URI="new-connection-string"
+
+# List all secrets
+fly secrets list
+
+# Remove a secret
+fly secrets unset SMTP_HOST
+```
+
+<Warning>
+  Updating secrets triggers a new deployment with zero-downtime.
+</Warning>
+
+### SSH into your VM
+
+```bash
+fly ssh console
+```
+
+Useful for debugging:
+
+```bash
+# Check disk usage
+df -h
+
+# View uploaded files
+ls -lh /data/uploads
+
+# Check environment variables
+env | grep MONGODB
+```
+
+### Access MongoDB from Fly.io
+
+If using MongoDB Atlas, ensure Fly.io IPs are whitelisted:
+
+1. Get your app's outbound IP:
+   ```bash
+   fly ips list
+   ```
+
+2. Add the IPv4 and IPv6 addresses to Atlas **Network Access** → **IP Access List**
+
+Alternatively, allow all IPs (0.0.0.0/0) for testing (not recommended for production).
+
+## Continuous deployment
+
+Deploy automatically on every push to `main`:
+
+<Steps>
+  <Step title="Generate a Fly.io deploy token">
+    ```bash
+    fly tokens create deploy
+    ```
+    
+    Copy the token.
+  </Step>
+  
+  <Step title="Add token to GitHub secrets">
+    Go to your repository → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**:
+    
+    - Name: `FLY_API_TOKEN`
+    - Value: (paste the token)
+  </Step>
+  
+  <Step title="Create GitHub Actions workflow">
+    Create `.github/workflows/deploy.yml`:
+    
+    ```yaml
+    name: Deploy to Fly.io
+    
+    on:
+      push:
+        branches: [main]
+    
+    jobs:
+      deploy:
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/checkout@v4
+          - uses: superfly/flyctl-actions/setup-flyctl@master
+          - run: flyctl deploy --remote-only
+            env:
+              FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+    ```
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+### Deployment fails with "health checks failed"
+
+**Solution**: Check logs for startup errors:
+
+```bash
+fly logs --level error
+```
+
+Common causes:
+- Missing required environment variables (JWT_SECRET, MONGODB_URI, etc.)
+- MongoDB connection failure
+- Port mismatch (app must listen on port 8080)
+
+### App crashes immediately after deploy
+
+**Solution**: Verify all required secrets are set:
+
+```bash
+fly secrets list
+```
+
+Ensure these are present:
+- `JWT_SECRET`
+- `JWT_REFRESH_SECRET`
+- `MONGODB_URI`
+- `FRONTEND_URL`
+
+### Volume not mounting
+
+**Solution**: Ensure volume name matches `fly.toml`:
+
+```bash
+# List volumes
+fly volumes list
+
+# Should show a volume named "db" in your region
+```
+
+If missing:
+
+```bash
+fly volumes create db --size 1 --region bom
+```
+
+### CORS errors
+
+**Solution**: Verify `FRONTEND_URL` matches your frontend deployment:
+
+```bash
+# Update secret
+fly secrets set FRONTEND_URL="https://your-frontend-url.com"
+```
+
+## Cost optimization
+
+Fly.io's free tier includes:
+- Up to 3 shared-cpu-1x 256mb VMs
+- 3GB persistent volume storage
+- 160GB outbound data transfer
+
+To minimize costs:
+
+1. **Use auto-stop/start**: Already configured in `fly.toml`
+   ```toml
+   auto_stop_machines = 'stop'
+   auto_start_machines = true
+   min_machines_running = 0
+   ```
+
+2. **Optimize volume size**: Start with 1GB and increase if needed
+   ```bash
+   fly volumes create db --size 1
+   ```
+
+3. **Monitor usage**:
+   ```bash
+   fly dashboard
+   ```
+
+For campus deployments with less than 1000 active users, the default configuration should stay within free tier limits.

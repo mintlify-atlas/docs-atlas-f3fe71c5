@@ -1,0 +1,180 @@
+---
+title: Refresh token
+description: Obtain new access and refresh tokens using a valid refresh token
+---
+
+## POST /api/auth/refresh-token
+
+Exchanges a valid refresh token for a new pair of access and refresh tokens. The old refresh token is invalidated after successful renewal.
+
+### Request body
+
+<ParamField body="refreshToken" type="string" required>
+  Valid refresh token obtained from login or previous refresh
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean">
+  Indicates if the token refresh was successful
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Human-readable response message
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  New authentication tokens
+  
+  <Expandable title="properties">
+    <ResponseField name="accessToken" type="string">
+      New JWT access token. Default expiration: 1 hour
+    </ResponseField>
+    
+    <ResponseField name="refreshToken" type="string">
+      New JWT refresh token. Default expiration: 7 days
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Status codes
+
+- `200` - Tokens refreshed successfully
+- `400` - Refresh token not provided
+- `401` - Invalid, expired, or revoked refresh token
+- `500` - Internal server error
+
+<Note>
+  The old refresh token is automatically deleted and can no longer be used. Always store and use the new refresh token from the response.
+</Note>
+
+<Warning>
+  Refresh tokens are single-use. Once a refresh token is used to obtain new tokens, it becomes invalid. Attempting to reuse it will result in a 401 error.
+</Warning>
+
+### Examples
+
+<CodeGroup>
+
+```bash Refresh tokens
+curl -X POST https://api.campusbite.com/api/auth/refresh-token \
+  -H "Content-Type: application/json" \
+  -d '{
+    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  }'
+```
+
+```javascript Automatic token refresh
+let accessToken = localStorage.getItem('accessToken');
+let refreshToken = localStorage.getItem('refreshToken');
+
+const refreshAccessToken = async () => {
+  try {
+    const response = await fetch('https://api.campusbite.com/api/auth/refresh-token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ refreshToken })
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      // Store new tokens
+      localStorage.setItem('accessToken', data.data.accessToken);
+      localStorage.setItem('refreshToken', data.data.refreshToken);
+      
+      accessToken = data.data.accessToken;
+      refreshToken = data.data.refreshToken;
+      
+      return data.data.accessToken;
+    }
+  } catch (error) {
+    // Redirect to login if refresh fails
+    window.location.href = '/login';
+  }
+};
+
+// Use in API requests with automatic retry
+const apiRequest = async (url, options = {}) => {
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      ...options.headers,
+      'Authorization': `Bearer ${accessToken}`
+    }
+  });
+  
+  // If access token expired, refresh and retry
+  if (response.status === 401) {
+    const newAccessToken = await refreshAccessToken();
+    if (newAccessToken) {
+      return fetch(url, {
+        ...options,
+        headers: {
+          ...options.headers,
+          'Authorization': `Bearer ${newAccessToken}`
+        }
+      });
+    }
+  }
+  
+  return response;
+};
+```
+
+</CodeGroup>
+
+#### Success response (200)
+
+```json
+{
+  "success": true,
+  "message": "Tokens refreshed successfully.",
+  "data": {
+    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  }
+}
+```
+
+#### Error response (400)
+
+```json
+{
+  "success": false,
+  "message": "Refresh token is required."
+}
+```
+
+#### Error response (401) - Invalid token
+
+```json
+{
+  "success": false,
+  "message": "Invalid refresh token."
+}
+```
+
+#### Error response (401) - Expired or not found
+
+```json
+{
+  "success": false,
+  "message": "Refresh token not found or expired."
+}
+```
+
+### Token rotation process
+
+This endpoint implements refresh token rotation for enhanced security:
+
+1. Validates the provided refresh token (signature and expiration)
+2. Verifies the token exists in the database and hasn't expired
+3. Deletes the old refresh token from the database
+4. Generates a new access token and refresh token pair
+5. Stores the new refresh token in the database with a 7-day expiration
+6. Returns both new tokens to the client
+
+Refresh tokens are automatically removed from the database when they expire using MongoDB TTL indexes.

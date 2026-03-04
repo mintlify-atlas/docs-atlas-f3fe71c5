@@ -1,0 +1,491 @@
+---
+title: OTP verification
+description: Learn how CampusBite uses OTP verification to secure order pickups and prevent fraud.
+---
+
+CampusBite implements a secure OTP (One-Time Password) system for order pickup verification. When an order is ready, a 6-digit OTP is generated and sent to the customer, who must share it with the store employee to collect their food.
+
+## Why OTP verification?
+
+The OTP system serves multiple purposes:
+
+- **Prevents unauthorized pickups**: Only the customer who placed the order has the OTP
+- **Confirms correct order**: Store employees verify they're handing food to the right person
+- **Tracks actual pickups**: System knows exactly when an order was collected
+- **Reduces fraud**: Makes it nearly impossible to claim someone else's order
+
+<Note>
+OTP verification is required for all order pickups. Store employees cannot mark an order as picked up without either verifying the OTP or manually confirming verification.
+</Note>
+
+## OTP generation
+
+When a store employee marks an order as "ready", the system automatically generates a 6-digit OTP:
+
+```javascript backend/src/services/otpService.js
+import crypto from 'crypto';
+
+export const generateOtp = () => {
+  const otp = crypto.randomInt(100000, 999999).toString();
+  return otp;
+};
+
+export const getOtpExpiry = () => {
+  const expiry = new Date();
+  expiry.setMinutes(expiry.getMinutes() + 15);
+  return expiry;
+};
+```
+
+OTP characteristics:
+- **6 digits**: Easy for customers to read and share verbally
+- **Cryptographically random**: Uses Node.js `crypto.randomInt()` for security
+- **15-minute expiry**: Gives customers reasonable time to collect food
+- **One-time use**: OTP becomes invalid after verification
+
+<Accordion title="Why 6 digits?">
+6-digit OTPs provide a good balance:
+- **Security**: 1,000,000 possible combinations make brute-force attacks impractical
+- **Usability**: Short enough to read over the phone or from an email
+- **Familiarity**: Customers are used to 6-digit OTPs from banking apps
+
+Longer OTPs would be more secure but harder for customers to communicate to store employees in a busy campus environment.
+</Accordion>
+
+## OTP lifecycle
+
+The OTP system integrates with the order status flow:
+
+<Steps>
+  <Step title="Order marked as ready">
+    Store employee updates order status to "ready". System generates OTP and sets expiry time.
+  </Step>
+  
+  <Step title="OTP sent to customer">
+    OTP is sent via email and push notification (if enabled). Customer can view it in the app.
+  </Step>
+  
+  <Step title="Customer arrives at store">
+    Customer shows or tells the OTP to the store employee.
+  </Step>
+  
+  <Step title="Store verifies OTP">
+    Store employee enters the OTP in CampusBite dashboard to verify.
+  </Step>
+  
+  <Step title="Order marked as picked up">
+    After successful verification, order status automatically changes to "picked_up".
+  </Step>
+</Steps>
+
+### Status update with OTP generation
+
+```javascript backend/src/controllers/orderController.js
+export const updateOrderStatus = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const { status } = req.body;
+
+    const order = await Order.findById(id)
+      .populate("store_id")
+      .populate("user_id", "name email no_show_count trust_tier");
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found.",
+      });
+    }
+
+    // Verify store ownership
+    if (order.store_id.owner_id.toString() !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to update this order.",
+      });
+    }
+
+    // Generate OTP when marking as ready
+    let generatedOtp = null;
+    if (status === "ready") {
+      generatedOtp = generateOtp();
+      order.otp = generatedOtp;
+      order.otp_expires_at = getOtpExpiry();
+      order.is_otp_verified = false;
+      order.ready_at = new Date();
+      order.ready_expires_at = nowPlusMinutes(READY_NO_SHOW_TIMEOUT_MINUTES);
+    }
+
+    order.order_status = status;
+    await order.save();
+
+    // Send OTP via email
+    if (status === "ready" && generatedOtp) {
+      await sendOtpEmail(
+        order.user_id.email,
+        order.user_id.name,
+        generatedOtp,
+        order.order_number,
+      );
+    }
+
+    // Send push notification with OTP
+    const notifExtra =
+      status === "ready" && generatedOtp
+        ? { otp: generatedOtp, otpExpiresAt: order.otp_expires_at }
+        : {};
+    pushOrderNotification(order.user_id._id, order, status, notifExtra);
+
+    res.json({
+      success: true,
+      message: `Order status updated to "${status}".`,
+      data: {
+        order: formatOrder(order, { store: order.store_id, customer: order.user_id }),
+        ...(generatedOtp ? { otp: generatedOtp } : {}),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+```
+
+<Warning>
+The OTP is included in the API response to the store employee so they can reference it if needed. However, the OTP should primarily be communicated to the customer via email/notification.
+</Warning>
+
+## OTP validation
+
+The validation function uses timing-safe comparison to prevent timing attacks:
+
+```javascript backend/src/services/otpService.js
+export const validateOtp = (storedOtp, inputOtp, expiresAt) => {
+  if (!storedOtp || !inputOtp || !expiresAt) {
+    return false;
+  }
+
+  // Check if OTP has expired
+  if (new Date() > new Date(expiresAt)) {
+    return false;
+  }
+
+  // Use timing-safe comparison
+  const a = Buffer.from(String(storedOtp));
+  const b = Buffer.from(String(inputOtp));
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+};
+```
+
+<Accordion title="Why timing-safe comparison?">
+**Regular comparison (`===`):**
+```javascript
+if (storedOtp === inputOtp) { ... }
+```
+This returns `false` as soon as it finds a mismatched character. An attacker could measure response times to guess the OTP one digit at a time.
+
+**Timing-safe comparison:**
+```javascript
+crypto.timingSafeEqual(a, b)
+```
+This always takes the same amount of time regardless of where characters differ, preventing timing attack vectors.
+</Accordion>
+
+## Verifying OTP at pickup
+
+Store employees verify the OTP through a dedicated endpoint:
+
+```javascript backend/src/controllers/orderController.js
+export const verifyOrderOtp = async (req, res, next) => {
+  try {
+    await runOrderTimeoutSweep();
+    const { id } = req.params;
+    const userId = req.user.id;
+    const { otp, manualConfirm } = req.body;
+
+    if (!otp && manualConfirm !== true) {
+      return res.status(400).json({
+        success: false,
+        message: "Provide OTP or confirm manual OTP verification.",
+      });
+    }
+
+    const order = await Order.findById(id)
+      .populate("store_id")
+      .populate("user_id", "name email");
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found.",
+      });
+    }
+
+    if (order.store_id.owner_id.toString() !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to verify OTP for this order.",
+      });
+    }
+
+    if (order.order_status !== "ready") {
+      return res.status(400).json({
+        success: false,
+        message: 'OTP can only be verified when order status is "ready".',
+      });
+    }
+
+    // Validate OTP if provided
+    if (otp) {
+      const isValid = validateOtp(order.otp, otp, order.otp_expires_at);
+
+      if (!isValid) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid or expired OTP.",
+        });
+      }
+    } else {
+      // Manual confirmation - check if OTP is still valid
+      const isStillValid = validateOtp(
+        order.otp,
+        order.otp,
+        order.otp_expires_at,
+      );
+      if (!isStillValid) {
+        return res.status(400).json({
+          success: false,
+          message: "OTP expired. Mark order ready again to generate a new OTP.",
+        });
+      }
+    }
+
+    // Mark as verified and picked up
+    order.is_otp_verified = true;
+    order.order_status = "picked_up";
+    order.ready_expires_at = null;
+    order.cancellation_reason = null;
+    await order.save();
+
+    // Send confirmation email and notification
+    await sendOrderStatusUpdate(
+      order.user_id.email,
+      order.user_id.name,
+      formatOrder(order),
+      "picked_up",
+    );
+    pushOrderNotification(order.user_id._id, order, "picked_up");
+
+    res.json({
+      success: true,
+      message: "OTP verified. Order marked as picked up.",
+      data: {
+        order: formatOrder(order, { store: order.store_id, customer: order.user_id }),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+```
+
+## Manual OTP confirmation
+
+Store employees can manually confirm OTP verification without entering the OTP if:
+
+1. They verify the customer has the correct OTP (e.g., customer shows it on their phone)
+2. The OTP hasn't expired
+3. They set `manualConfirm: true` in the request
+
+This is useful for busy environments where typing the OTP would slow down service.
+
+```javascript Example manual confirmation
+// Instead of sending the OTP:
+{
+  "otp": "123456"
+}
+
+// Send manual confirmation:
+{
+  "manualConfirm": true
+}
+```
+
+<Note>
+Manual confirmation still validates that the OTP exists and hasn't expired. It just skips the actual OTP matching step, trusting the store employee to have verified it visually.
+</Note>
+
+## OTP expiry handling
+
+OTPs expire 15 minutes after generation. If an OTP expires:
+
+1. The validation function returns `false`
+2. Store employee cannot verify the order
+3. Store must mark the order as "ready" again to generate a new OTP
+4. New OTP is sent to the customer
+
+```javascript Expired OTP flow
+// Customer tries to use expired OTP
+POST /api/orders/:id/verify-otp
+{
+  "otp": "123456"
+}
+
+// Response:
+{
+  "success": false,
+  "message": "Invalid or expired OTP."
+}
+
+// Store re-marks as ready:
+PATCH /api/orders/:id/status
+{
+  "status": "ready"
+}
+
+// New OTP generated and sent to customer
+```
+
+<Warning>
+If an order remains in "ready" status for too long without OTP verification, the automatic timeout sweep will cancel it as a no-show. Make sure customers collect their orders within the ready timeout window (20 minutes by default).
+</Warning>
+
+## OTP email template
+
+Customers receive the OTP via email with clear formatting:
+
+```javascript backend/src/services/emailService.js
+export const sendOtpEmail = async (email, name, otp, orderNumber) => {
+  const content = `
+    <h2 style="color: #333333; margin-top: 0;">Your Pickup OTP</h2>
+    <p style="color: #555555; line-height: 1.6;">
+      Hi ${escapeHtml(name)}, your order <strong>${escapeHtml(orderNumber)}</strong> is ready for pickup!
+    </p>
+    <p style="color: #555555; line-height: 1.6;">
+      Please share the following OTP with the store employee when collecting your order:
+    </p>
+    <div style="text-align: center; margin: 25px 0;">
+      <div style="display: inline-block; background-color: #FF6B35; color: #ffffff; padding: 15px 40px; border-radius: 8px; font-size: 32px; font-weight: bold; letter-spacing: 8px;">
+        ${escapeHtml(String(otp))}
+      </div>
+    </div>
+    <p style="color: #888888; font-size: 13px; text-align: center;">
+      This OTP is valid for 15 minutes. Do not share it with anyone other than the store employee.
+    </p>
+  `;
+
+  const html = wrapTemplate(content);
+  await sendEmail(email, `Pickup OTP for Order ${orderNumber}`, html);
+};
+```
+
+The OTP is displayed:
+- Large and bold (32px font)
+- High contrast (white on orange)
+- Letter-spaced for readability
+- Centered on the page
+
+## Order schema fields
+
+The Order model includes three OTP-related fields:
+
+```javascript backend/src/models/Order.js
+const orderSchema = new mongoose.Schema({
+  // ... other fields ...
+  
+  otp: { type: String, default: null },
+  otp_expires_at: { type: Date, default: null },
+  is_otp_verified: { type: Boolean, default: false },
+  
+  // ... other fields ...
+});
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `otp` | String | The 6-digit OTP (null until order is ready) |
+| `otp_expires_at` | Date | When the OTP expires (15 minutes from generation) |
+| `is_otp_verified` | Boolean | Whether the OTP has been successfully verified |
+
+<Note>
+The `is_otp_verified` flag prevents the same OTP from being used multiple times. Once set to `true`, the order transitions to "picked_up" status.
+</Note>
+
+## Security considerations
+
+<Steps>
+  <Step title="Use cryptographic randomness">
+    Always use `crypto.randomInt()` instead of `Math.random()` for generating OTPs. Math.random() is not cryptographically secure.
+  </Step>
+  
+  <Step title="Implement timing-safe comparison">
+    Use `crypto.timingSafeEqual()` to prevent timing attacks when validating OTPs.
+  </Step>
+  
+  <Step title="Set reasonable expiry">
+    15 minutes gives customers enough time to collect food without making OTPs too long-lived.
+  </Step>
+  
+  <Step title="Single-use OTPs">
+    Set `is_otp_verified: true` after successful verification to prevent OTP reuse.
+  </Step>
+  
+  <Step title="Rate limiting">
+    Consider implementing rate limiting on the OTP verification endpoint to prevent brute-force attempts.
+  </Step>
+</Steps>
+
+## API endpoints
+
+| Endpoint | Method | Description | Auth |
+|----------|--------|-------------|------|
+| `/api/orders/:id/status` | PATCH | Update order status (generates OTP when status="ready") | Store employee |
+| `/api/orders/:id/verify-otp` | POST | Verify OTP and mark order as picked up | Store employee |
+| `/api/orders/:id` | GET | Get order details (includes OTP if ready) | Owner/Store |
+
+<Accordion title="Request examples">
+**Mark order as ready (generates OTP):**
+```bash
+curl -X PATCH http://localhost:5000/api/orders/ORDER_ID/status \
+  -H "Authorization: Bearer STORE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"status": "ready"}'
+```
+
+**Verify OTP:**
+```bash
+curl -X POST http://localhost:5000/api/orders/ORDER_ID/verify-otp \
+  -H "Authorization: Bearer STORE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"otp": "123456"}'
+```
+
+**Manual confirmation:**
+```bash
+curl -X POST http://localhost:5000/api/orders/ORDER_ID/verify-otp \
+  -H "Authorization: Bearer STORE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"manualConfirm": true}'
+```
+</Accordion>
+
+## Best practices
+
+<Steps>
+  <Step title="Display OTP prominently in the app">
+    Show the OTP in large text on the order tracking screen so customers can easily show or read it to store employees.
+  </Step>
+  
+  <Step title="Support multiple delivery methods">
+    Send OTP via both email and push notifications. Some customers may not have notifications enabled.
+  </Step>
+  
+  <Step title="Train store staff">
+    Ensure store employees understand they must verify the OTP before handing over food, even if they recognize the customer.
+  </Step>
+  
+  <Step title="Handle expired OTPs gracefully">
+    Show clear error messages and instructions when OTPs expire. Make it easy for customers to request a new one.
+  </Step>
+</Steps>

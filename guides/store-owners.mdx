@@ -1,0 +1,249 @@
+---
+title: Guide for store owners
+description: Manage your store, process orders, and update your menu on CampusBite
+---
+
+Welcome to the CampusBite store management system. This guide will help you efficiently manage orders and keep your menu up to date.
+
+## Dashboard overview
+
+Your dashboard gives you a quick overview of your store's performance.
+
+### Key metrics
+
+<CardGroup cols={2}>
+  <Card title="Pending Orders" icon="clock">
+    Orders that are placed or accepted and need your attention.
+  </Card>
+  
+  <Card title="Today's Orders" icon="shopping-bag">
+    Total number of orders received today.
+  </Card>
+  
+  <Card title="Today's Revenue" icon="indian-rupee">
+    Total confirmed revenue from successful orders today.
+  </Card>
+  
+  <Card title="Active Menu Items" icon="utensils-crossed">
+    Number of items currently available for ordering.
+  </Card>
+</CardGroup>
+
+### Quick actions
+
+From your dashboard, you can quickly:
+
+- **Manage Orders**: Jump to the order management page
+- **Manage Menu**: Add, edit, or disable menu items
+- **Store Settings**: Update your store details and UPI information
+
+<Note>
+  The dashboard updates automatically with real-time data. Use the desktop version for the best experience managing multiple orders.
+</Note>
+
+## Manage orders
+
+The order management page is the heart of your operations. It automatically refreshes every 2 seconds to show new orders.
+
+### Order workflow
+
+Orders go through a specific workflow that you control:
+
+<Steps>
+  <Step title="New orders arrive">
+    When a customer places an order, it appears in the "New" tab with status "Placed". You'll see:
+    - Order number and timestamp
+    - Customer name and identity (register number or employee ID)
+    - Payment reference and transaction ID
+    - Items ordered with quantities
+    - Total amount
+    - Special instructions (if any)
+  </Step>
+  
+  <Step title="Verify payment">
+    Check your UPI app for the payment using the payment reference. If payment is confirmed, click "Confirm Payment" and optionally enter the transaction ID.
+  </Step>
+  
+  <Step title="Accept the order">
+    Once payment is verified:
+    - If the customer has good standing, click "Accept Order" immediately
+    - If commitment confirmation is required, wait for the customer to confirm they're on the way before accepting
+    
+    The order moves to the "Accepted" tab.
+  </Step>
+  
+  <Step title="Start preparing">
+    When you begin cooking, click "Start Preparing". The order moves to the "Preparing" tab.
+  </Step>
+  
+  <Step title="Mark as ready">
+    When the order is complete, click "Mark Ready". This:
+    - Generates a 6-digit pickup OTP
+    - Sends the OTP to the customer
+    - Moves the order to the "Ready" tab
+  </Step>
+  
+  <Step title="Complete the order">
+    When the customer arrives:
+    - Ask them to show or tell you their OTP
+    - Click "Verify OTP & Complete"
+    - Confirm the OTP matches
+    - Hand over the order
+    
+    The order moves to "Completed".
+  </Step>
+</Steps>
+
+### Payment verification
+
+When you click "Confirm Payment" on an order:
+
+1. A dialog appears showing the order details
+2. Check your UPI app for the payment using the **Payment Reference** shown
+3. Optionally enter the **Transaction ID** from your UPI app
+4. Click "Confirm Payment" to mark as paid, or "Mark Failed" if payment wasn't received
+
+<Tip>
+  The payment reference is unique to each order. Use it to quickly find the payment in your UPI transaction history.
+</Tip>
+
+### OTP verification
+
+When an order is ready and the customer arrives:
+
+1. Click "Verify OTP & Complete" on the order
+2. A dialog shows the expected OTP
+3. Ask the customer to show their OTP
+4. Verify it matches
+5. Click "Confirm OTP Checked & Complete"
+
+<Note>
+  You don't need to type the OTP. Just visually confirm it matches and click to complete.
+</Note>
+
+### Order tabs
+
+Orders are organized into tabs for easy management:
+
+- **All**: See all orders regardless of status
+- **New**: Orders just placed, waiting for payment verification
+- **Accepted**: Payment verified, waiting to start preparation
+- **Preparing**: Currently being prepared
+- **Ready**: Complete and waiting for customer pickup
+- **Completed**: Successfully picked up
+
+Each tab shows a count badge with the number of orders in that status.
+
+<Tip>
+  Keep an eye on the "New" tab for incoming orders. A notification appears when new orders arrive, and you'll see a pulsing indicator.
+</Tip>
+
+### Customer commitment system
+
+For customers with a history of no-shows, you'll see their commitment status:
+
+- **Green text**: "Commitment: Customer confirmed on the way" - safe to prepare
+- **Orange text**: "Commitment: Pending customer confirmation" - wait before preparing
+
+<Note>
+  This system helps prevent food waste from no-shows. Don't start preparing orders with pending commitment until the customer confirms.
+</Note>
+
+## Menu management
+
+Keep your menu fresh and up-to-date with the menu management tools.
+
+### Add new items
+
+<Steps>
+  <Step title="Click Add New Item">
+    From the menu management page, click the "Add New Item" button.
+  </Step>
+  
+  <Step title="Fill in details">
+    Enter:
+    - **Name**: The dish name (required)
+    - **Description**: Brief description of the item (optional)
+    - **Price**: Price in INR (required, minimum ₹1)
+    - **Category**: Group items by category like "Main Course", "Beverages", etc.
+    - **Image**: Upload a photo of the dish (optional, max 5MB)
+    - **Available**: Toggle whether customers can order this item
+  </Step>
+  
+  <Step title="Save the item">
+    Click "Add Item" to make it available on your menu.
+  </Step>
+</Steps>
+
+### Edit existing items
+
+1. Find the item you want to edit
+2. Click the pencil icon on the item card
+3. Update any details
+4. Click "Save Changes"
+
+<Tip>
+  Use categories to organize your menu. Customers can filter by category to find items faster.
+</Tip>
+
+### Manage availability
+
+Quickly toggle items on and off:
+
+- **Toggle switch**: Each item has a switch to mark it available or unavailable
+- **Instant updates**: Changes reflect immediately for customers
+- **Keep items**: Unavailable items stay in your menu, just hidden from customers
+
+<Note>
+  Use the availability toggle when you run out of ingredients or need to temporarily pause orders for specific items.
+</Note>
+
+### Search and filter
+
+- **Search bar**: Find items quickly by name or description
+- **Category filter**: View items from a specific category
+
+Both filters can be used together to narrow down your menu.
+
+### Delete items
+
+1. Click the trash icon on an item card
+2. Confirm the deletion in the dialog
+3. The item is permanently removed from your menu
+
+<Note>
+  Deleting an item cannot be undone. Consider marking it as unavailable instead if you might offer it again later.
+</Note>
+
+## Best practices
+
+### Order processing
+
+- **Check orders frequently**: The page auto-refreshes every 2 seconds, but actively monitor for new orders during busy hours
+- **Verify payments quickly**: Fast payment verification improves customer experience
+- **Communicate delays**: If preparation takes longer than expected, consider calling the customer
+- **Check special instructions**: Always read any special requests before starting preparation
+
+### Payment verification
+
+- **Use payment references**: The unique payment reference makes it easy to find transactions in your UPI history
+- **Record transaction IDs**: While optional, recording transaction IDs helps with reconciliation
+- **Mark failed payments promptly**: If payment isn't received, mark it as failed so the order is cancelled
+
+### Menu management
+
+- **Update availability daily**: Turn off items you can't prepare before accepting orders
+- **Use good photos**: Items with appealing photos tend to sell better
+- **Write clear descriptions**: Help customers know what they're ordering
+- **Price accurately**: Make sure prices reflect your actual costs
+- **Organize with categories**: Categories make browsing easier for customers
+
+### Customer reliability
+
+- **Wait for commitment**: If an order shows pending commitment, wait for the customer to confirm before preparing
+- **Monitor pickup times**: Orders have pickup deadlines. Completed orders not picked up are automatically cancelled
+- **Use the OTP system**: Always verify the pickup OTP to ensure the right person receives the order
+
+<Tip>
+  Desktop mode is recommended for managing orders efficiently. The larger screen lets you see more orders at once and process them faster.
+</Tip>

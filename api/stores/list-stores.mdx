@@ -1,0 +1,178 @@
+---
+title: List stores
+description: Retrieve a list of all active stores on the platform
+---
+
+## Endpoint
+
+```
+GET /stores
+```
+
+Retrieve a list of all active stores. Returns stores sorted by creation date (newest first) with owner information populated.
+
+## Authentication
+
+No authentication required. This is a public endpoint.
+
+## Response
+
+<ResponseField name="success" type="boolean" required>
+  Indicates if the request was successful
+</ResponseField>
+
+<ResponseField name="data" type="object" required>
+  Contains the response data
+  
+  <Expandable title="data properties">
+    <ResponseField name="stores" type="array" required>
+      Array of store objects
+      
+      <Expandable title="store object">
+        <ResponseField name="id" type="string" required>
+          Unique identifier for the store
+        </ResponseField>
+        
+        <ResponseField name="_id" type="string" required>
+          MongoDB ObjectId (same as id)
+        </ResponseField>
+        
+        <ResponseField name="name" type="string" required>
+          Store name
+        </ResponseField>
+        
+        <ResponseField name="description" type="string">
+          Store description
+        </ResponseField>
+        
+        <ResponseField name="upi_id" type="string" required>
+          UPI ID for payments
+        </ResponseField>
+        
+        <ResponseField name="owner_id" type="string" required>
+          ID of the store owner
+        </ResponseField>
+        
+        <ResponseField name="ownerId" type="string" required>
+          Store owner ID (camelCase)
+        </ResponseField>
+        
+        <ResponseField name="is_active" type="boolean" required>
+          Whether the store is active
+        </ResponseField>
+        
+        <ResponseField name="isActive" type="boolean" required>
+          Active status (camelCase)
+        </ResponseField>
+        
+        <ResponseField name="operating_hours" type="object">
+          Store operating hours configuration
+        </ResponseField>
+        
+        <ResponseField name="operatingHours" type="object">
+          Operating hours (camelCase)
+        </ResponseField>
+        
+        <ResponseField name="image_url" type="string">
+          URL to store image
+        </ResponseField>
+        
+        <ResponseField name="imageUrl" type="string">
+          Store image URL (camelCase)
+        </ResponseField>
+        
+        <ResponseField name="qr_code_url" type="string">
+          URL to store QR code
+        </ResponseField>
+        
+        <ResponseField name="qrCodeUrl" type="string">
+          QR code URL (camelCase)
+        </ResponseField>
+        
+        <ResponseField name="owner_name" type="string">
+          Name of the store owner
+        </ResponseField>
+        
+        <ResponseField name="created_at" type="string">
+          ISO 8601 timestamp of creation
+        </ResponseField>
+        
+        <ResponseField name="createdAt" type="string">
+          Creation timestamp (camelCase)
+        </ResponseField>
+        
+        <ResponseField name="updated_at" type="string">
+          ISO 8601 timestamp of last update
+        </ResponseField>
+        
+        <ResponseField name="updatedAt" type="string">
+          Last update timestamp (camelCase)
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Example request
+
+<CodeGroup>
+```bash cURL
+curl https://api.campusbite.com/stores
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.campusbite.com/stores');
+const data = await response.json();
+```
+
+```python Python
+import requests
+
+response = requests.get('https://api.campusbite.com/stores')
+data = response.json()
+```
+</CodeGroup>
+
+## Example response
+
+```json
+{
+  "success": true,
+  "data": {
+    "stores": [
+      {
+        "id": "507f1f77bcf86cd799439011",
+        "_id": "507f1f77bcf86cd799439011",
+        "name": "Campus Cafe",
+        "description": "Your favorite campus coffee shop",
+        "upi_id": "campuscafe@paytm",
+        "owner_id": "507f1f77bcf86cd799439012",
+        "ownerId": "507f1f77bcf86cd799439012",
+        "is_active": true,
+        "isActive": true,
+        "operating_hours": {
+          "monday": { "open": "08:00", "close": "18:00" },
+          "tuesday": { "open": "08:00", "close": "18:00" }
+        },
+        "operatingHours": {
+          "monday": { "open": "08:00", "close": "18:00" },
+          "tuesday": { "open": "08:00", "close": "18:00" }
+        },
+        "image_url": "/uploads/stores/campus-cafe.jpg",
+        "imageUrl": "/uploads/stores/campus-cafe.jpg",
+        "qr_code_url": "/uploads/qr-codes/campus-cafe-qr.png",
+        "qrCodeUrl": "/uploads/qr-codes/campus-cafe-qr.png",
+        "owner_name": "John Doe",
+        "created_at": "2024-01-15T10:30:00.000Z",
+        "createdAt": "2024-01-15T10:30:00.000Z",
+        "updated_at": "2024-01-20T14:45:00.000Z",
+        "updatedAt": "2024-01-20T14:45:00.000Z"
+      }
+    ]
+  }
+}
+```
+
+<Note>
+Only active stores (`is_active: true`) are returned by this endpoint. Stores are automatically sorted by creation date with the newest stores appearing first.
+</Note>

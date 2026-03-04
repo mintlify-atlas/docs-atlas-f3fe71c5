@@ -1,0 +1,436 @@
+---
+title: Project structure
+description: Explore CampusBite's codebase organization, directory structure, and architectural patterns
+---
+
+CampusBite follows a monorepo structure with separate frontend and backend directories. Both applications use ES modules and maintain clear separation of concerns.
+
+## Repository layout
+
+```
+CampusBite/
+├── backend/              # Express.js API server
+├── frontend/             # React SPA
+├── package.json          # Root workspace config
+├── README.md             # Setup documentation
+├── Dockerfile            # Production container build
+└── fly.toml              # Fly.io deployment config
+```
+
+<Note>
+  The root `package.json` contains scripts to run both apps concurrently with `npm run dev`.
+</Note>
+
+## Backend structure
+
+The backend follows a layered architecture with clear separation between routing, business logic, and data access.
+
+### Directory tree
+
+```
+backend/
+├── src/
+│   ├── config/           # Configuration modules
+│   │   ├── db.js         # MongoDB connection setup
+│   │   ├── email.js      # Nodemailer transport config
+│   │   ├── preflight.js  # Startup validation checks
+│   │   └── uploads.js    # Multer upload configuration
+│   │
+│   ├── controllers/      # Route handlers (business logic)
+│   │   ├── authController.js
+│   │   ├── menuController.js
+│   │   ├── orderController.js
+│   │   ├── storeController.js
+│   │   └── userController.js
+│   │
+│   ├── middleware/       # Express middleware
+│   │   ├── auth.js           # JWT authentication + authorization
+│   │   ├── errorHandler.js   # Global error handling
+│   │   ├── upload.js         # Multer file upload middleware
+│   │   └── validate.js       # Zod schema validation
+│   │
+│   ├── models/           # Mongoose schemas
+│   │   ├── User.js
+│   │   ├── Store.js
+│   │   ├── MenuItem.js
+│   │   ├── Order.js
+│   │   └── RefreshToken.js
+│   │
+│   ├── routes/           # Express route definitions
+│   │   ├── authRoutes.js
+│   │   ├── menuRoutes.js
+│   │   ├── orderRoutes.js
+│   │   ├── storeRoutes.js
+│   │   ├── userRoutes.js
+│   │   └── notificationRoutes.js
+│   │
+│   ├── services/         # Business logic services
+│   │   ├── emailService.js       # Email sending
+│   │   ├── otpService.js         # OTP generation and verification
+│   │   ├── paymentService.js     # UPI link generation
+│   │   └── notificationService.js # SSE notifications
+│   │
+│   ├── utils/            # Helper functions
+│   │   └── formatters.js # Data transformation utilities
+│   │
+│   └── index.js          # Application entry point
+│
+├── public/
+│   └── uploads/          # User-uploaded files (dev mode)
+│
+├── .env.example          # Environment variable template
+├── .env                  # Local environment config (gitignored)
+└── package.json          # Backend dependencies
+```
+
+### Architectural layers
+
+<Accordion title="Routes layer">
+  Route files define Express endpoints and apply middleware:
+  
+  ```javascript
+  // backend/src/routes/orderRoutes.js
+  import { authenticate, authorize } from '../middleware/auth.js'
+  import { createOrder } from '../controllers/orderController.js'
+  
+  router.post('/', authenticate, authorize('student', 'faculty'), createOrder)
+  ```
+  
+  Routes delegate business logic to controllers and never directly access models.
+</Accordion>
+
+<Accordion title="Controllers layer">
+  Controllers handle HTTP requests and responses:
+  
+  ```javascript
+  // backend/src/controllers/orderController.js
+  export const createOrder = async (req, res, next) => {
+    try {
+      // Extract data from req.body
+      // Call service functions
+      // Query database via models
+      // Send JSON response
+    } catch (error) {
+      next(error)
+    }
+  }
+  ```
+  
+  Controllers are located at `backend/src/controllers/`.
+</Accordion>
+
+<Accordion title="Services layer">
+  Reusable business logic extracted from controllers:
+  
+  - **emailService.js**: Send verification and reset emails
+  - **otpService.js**: Generate 6-digit OTPs with expiry
+  - **paymentService.js**: Create UPI deep links
+  - **notificationService.js**: Manage SSE connections for real-time updates
+  
+  Services are pure functions that don't directly access `req` or `res` objects.
+</Accordion>
+
+<Accordion title="Models layer">
+  Mongoose schemas define data structure and validation:
+  
+  ```javascript
+  // backend/src/models/Order.js
+  const orderSchema = new mongoose.Schema({
+    order_number: { type: String, required: true, unique: true },
+    user_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    items: [orderItemSchema],
+    order_status: {
+      type: String,
+      enum: ['placed', 'accepted', 'processing', 'ready', 'picked_up', 'cancelled']
+    }
+  })
+  ```
+  
+  Models expose Mongoose query methods used by controllers.
+</Accordion>
+
+### Entry point
+
+The server bootstraps in **backend/src/index.js**:
+
+1. Load environment variables (dotenv)
+2. Initialize Express app
+3. Apply security middleware (helmet, CORS)
+4. Configure rate limiters (global, auth, orders)
+5. Register routes
+6. Start database connection
+7. Listen on configured port
+
+See backend/src/index.js:191 for the `startServer()` function.
+
+<Note>
+  The SSE notification route is registered **before** rate limiters to allow persistent connections (backend/src/index.js:72).
+</Note>
+
+## Frontend structure
+
+The frontend follows a component-based architecture with React hooks and context for state management.
+
+### Directory tree
+
+```
+frontend/
+├── src/
+│   ├── components/
+│   │   ├── ui/               # Base UI components
+│   │   │   ├── Button.jsx
+│   │   │   ├── Card.jsx
+│   │   │   ├── Dialog.jsx
+│   │   │   ├── Input.jsx
+│   │   │   ├── Select.jsx
+│   │   │   └── ... (20+ components)
+│   │   │
+│   │   ├── layout/           # Layout components
+│   │   │   ├── Navbar.jsx
+│   │   │   └── Layout.jsx
+│   │   │
+│   │   └── shared/           # Feature-specific shared components
+│   │       ├── StatusBadge.jsx
+│   │       ├── OrderTimeline.jsx
+│   │       ├── CartButton.jsx
+│   │       └── LoadingSpinner.jsx
+│   │
+│   ├── contexts/             # React Context providers
+│   │   ├── AuthContext.jsx       # User authentication state
+│   │   ├── CartContext.jsx       # Shopping cart state
+│   │   └── NotificationContext.jsx  # Toast notifications
+│   │
+│   ├── hooks/                # Custom React hooks
+│   │   └── usePolling.js     # Order status polling
+│   │
+│   ├── lib/                  # Utilities and helpers
+│   │   ├── api.js            # Axios instance with interceptors
+│   │   ├── authStorage.js    # LocalStorage helpers for JWT
+│   │   ├── validators.js     # Form validation functions
+│   │   └── utils.js          # General utilities
+│   │
+│   ├── pages/                # Route components
+│   │   ├── auth/
+│   │   │   ├── LoginPage.jsx
+│   │   │   ├── RegisterPage.jsx
+│   │   │   ├── VerifyEmailPage.jsx
+│   │   │   ├── ForgotPasswordPage.jsx
+│   │   │   └── ResetPasswordPage.jsx
+│   │   │
+│   │   ├── student/          # Customer-facing pages
+│   │   │   ├── StoresPage.jsx
+│   │   │   ├── MenuPage.jsx
+│   │   │   ├── CartPage.jsx
+│   │   │   ├── CheckoutPage.jsx
+│   │   │   ├── OrdersPage.jsx
+│   │   │   └── OrderDetailsPage.jsx
+│   │   │
+│   │   └── store/            # Store employee pages
+│   │       ├── DashboardPage.jsx
+│   │       ├── OrdersPage.jsx
+│   │       ├── MenuPage.jsx
+│   │       └── SettingsPage.jsx
+│   │
+│   ├── App.jsx               # Route configuration
+│   ├── main.jsx              # React root + context providers
+│   └── index.css             # Tailwind imports
+│
+├── public/                   # Static assets
+├── index.html                # HTML entry point
+├── vite.config.js            # Vite build configuration
+├── tailwind.config.js        # Tailwind CSS settings
+└── package.json              # Frontend dependencies
+```
+
+### Component patterns
+
+<Accordion title="UI components (components/ui/)">
+  Reusable, unstyled primitives built with Radix UI:
+  
+  - Fully accessible (ARIA compliant)
+  - Composable APIs
+  - No business logic
+  - Styled with Tailwind CSS and `class-variance-authority` for variants
+  
+  Example usage:
+  
+  ```jsx
+  import { Button } from '@/components/ui/Button'
+  
+  <Button variant="primary" size="lg">Place Order</Button>
+  ```
+</Accordion>
+
+<Accordion title="Layout components (components/layout/)">
+  Structural components used across all pages:
+  
+  - **Navbar**: Top navigation with user menu and cart button
+  - **Layout**: Wraps page content with navbar and responsive container
+  
+  Applied in App.jsx routing.
+</Accordion>
+
+<Accordion title="Shared components (components/shared/)">
+  Feature-specific reusable components:
+  
+  - **StatusBadge**: Displays order/payment status with color coding
+  - **OrderTimeline**: Visual timeline of order progression
+  - **CartButton**: Cart icon with item count badge
+  - **LoadingSpinner**: Loading indicator
+</Accordion>
+
+### State management
+
+<CardGroup cols={3}>
+  <Card title="AuthContext" icon="user">
+    User authentication state and login/logout actions
+  </Card>
+  <Card title="CartContext" icon="shopping-cart">
+    Shopping cart items and add/remove operations
+  </Card>
+  <Card title="NotificationContext" icon="bell">
+    Toast notifications using Sonner library
+  </Card>
+</CardGroup>
+
+All contexts are provided at the root in **frontend/src/main.jsx**:
+
+```jsx
+<AuthProvider>
+  <CartProvider>
+    <NotificationProvider>
+      <App />
+    </NotificationProvider>
+  </CartProvider>
+</AuthProvider>
+```
+
+### Routing structure
+
+React Router defines protected and public routes in **frontend/src/App.jsx**:
+
+```jsx
+<Route path="/" element={<Layout />}>
+  {/* Public routes */}
+  <Route path="/login" element={<LoginPage />} />
+  <Route path="/register" element={<RegisterPage />} />
+  
+  {/* Protected student routes */}
+  <Route path="/stores" element={<ProtectedRoute><StoresPage /></ProtectedRoute>} />
+  <Route path="/orders" element={<ProtectedRoute><OrdersPage /></ProtectedRoute>} />
+  
+  {/* Protected store routes */}
+  <Route path="/store/dashboard" element={<ProtectedRoute role="store_employee"><DashboardPage /></ProtectedRoute>} />
+</Route>
+```
+
+## Configuration files
+
+### Backend configuration
+
+<CardGroup cols={2}>
+  <Card title=".env" icon="file-code">
+    Environment variables (gitignored)
+  </Card>
+  <Card title=".env.example" icon="copy">
+    Template with all required variables
+  </Card>
+  <Card title="package.json" icon="npm">
+    Dependencies and scripts
+  </Card>
+</CardGroup>
+
+### Frontend configuration
+
+<CardGroup cols={2}>
+  <Card title="vite.config.js" icon="bolt">
+    Vite build settings and dev server proxy
+  </Card>
+  <Card title="tailwind.config.js" icon="palette">
+    Tailwind theme and plugin configuration
+  </Card>
+  <Card title="package.json" icon="npm">
+    Dependencies and build scripts
+  </Card>
+</CardGroup>
+
+## Key architectural decisions
+
+### ES modules everywhere
+
+Both frontend and backend use ES modules (`import`/`export`) instead of CommonJS:
+
+- Backend: `"type": "module"` in package.json
+- Frontend: Vite defaults to ES modules
+- All files use `.js` extension (JSX in frontend via Vite plugin)
+
+### No centralized state management library
+
+The frontend uses React Context instead of Redux/Zustand because:
+
+- Application state is simple (auth, cart, notifications)
+- Most data is fetched per-page and doesn't need global caching
+- Reduces bundle size and complexity
+
+### MongoDB over PostgreSQL
+
+The codebase was originally designed for PostgreSQL but was migrated to MongoDB:
+
+- Mongoose provides schema validation similar to SQL
+- Flexible schema for rapid iteration
+- Easy deployment with MongoDB Atlas
+
+<Note>
+  The README mentions PostgreSQL because the original design used it. The current implementation uses MongoDB exclusively (see backend/src/config/db.js).
+</Note>
+
+### Manual payment confirmation
+
+No payment gateway integration—UPI payments are confirmed manually by store employees:
+
+- Reduces complexity and third-party dependencies
+- Suitable for small campus environment with trusted users
+- Stores verify payment in their UPI app before accepting orders
+
+## Development workflow
+
+### Running the application
+
+```bash
+# Install all dependencies
+npm run install:all
+
+# Start both frontend and backend
+npm run dev
+
+# Or run separately
+npm run dev:backend   # Port 5000
+npm run dev:frontend  # Port 5173
+```
+
+### Directory conventions
+
+<Accordion title="Backend conventions">
+  - **Controllers**: Named `<entity>Controller.js` (e.g., `orderController.js`)
+  - **Routes**: Named `<entity>Routes.js` (e.g., `orderRoutes.js`)
+  - **Models**: Capitalized entity names (e.g., `Order.js`)
+  - **Services**: Named `<feature>Service.js` (e.g., `emailService.js`)
+</Accordion>
+
+<Accordion title="Frontend conventions">
+  - **Pages**: Named `<Name>Page.jsx` (e.g., `DashboardPage.jsx`)
+  - **Components**: PascalCase names (e.g., `Button.jsx`, `OrderTimeline.jsx`)
+  - **Hooks**: Prefixed with `use` (e.g., `usePolling.js`)
+  - **Utils**: camelCase names (e.g., `api.js`, `validators.js`)
+</Accordion>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Architecture overview" href="/architecture/overview" icon="sitemap">
+    Learn about system design and data flow
+  </Card>
+  <Card title="Tech stack" href="/architecture/tech-stack" icon="layer-group">
+    Explore technologies and dependencies
+  </Card>
+</CardGroup>

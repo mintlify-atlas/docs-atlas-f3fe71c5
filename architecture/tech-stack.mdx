@@ -1,0 +1,301 @@
+---
+title: Tech stack
+description: Complete overview of technologies, frameworks, and libraries used in CampusBite
+---
+
+CampusBite is built with modern JavaScript technologies across the full stack. This page documents all major dependencies and their purposes.
+
+## Frontend stack
+
+The client application is a React single-page application built with Vite.
+
+### Core frameworks
+
+<CardGroup cols={2}>
+  <Card title="React 19.2" icon="react">
+    UI library with hooks and context for state management
+  </Card>
+  <Card title="Vite 7.3" icon="bolt">
+    Build tool with hot module replacement
+  </Card>
+  <Card title="React Router 7.13" icon="route">
+    Client-side routing with protected routes
+  </Card>
+  <Card title="Tailwind CSS 4.1" icon="wind">
+    Utility-first CSS framework for styling
+  </Card>
+</CardGroup>
+
+### UI components
+
+CampusBite uses a shadcn/ui-inspired component architecture with Radix UI primitives:
+
+| Package | Purpose |
+|---------|--------|
+| `@radix-ui/react-dialog` | Modal dialogs for confirmations |
+| `@radix-ui/react-dropdown-menu` | User profile and action menus |
+| `@radix-ui/react-select` | Styled select inputs |
+| `@radix-ui/react-switch` | Toggle switches for availability |
+| `@radix-ui/react-tabs` | Tab navigation in store dashboard |
+| `@radix-ui/react-avatar` | User profile avatars |
+| `@radix-ui/react-checkbox` | Form checkboxes |
+| `@radix-ui/react-label` | Accessible form labels |
+| `@radix-ui/react-popover` | Popover menus |
+| `@radix-ui/react-scroll-area` | Custom scrollbars |
+| `@radix-ui/react-separator` | Dividers |
+
+<Note>
+  All Radix components are wrapped in custom implementations at `frontend/src/components/ui/` to match the app's design system.
+</Note>
+
+### Utilities and styling
+
+```json
+"lucide-react": "^0.564.0"        // Icon library
+"class-variance-authority": "^0.7.1"  // Component variants
+"clsx": "^2.1.1"                  // Conditional classNames
+"tailwind-merge": "^3.4.1"        // Merge Tailwind classes
+"tailwindcss-animate": "^1.0.7"   // Animation utilities
+"sonner": "^2.0.7"                // Toast notifications
+```
+
+### HTTP client
+
+**Axios 1.13.5** handles all API communication with advanced features:
+
+- Request interceptor: Auto-attach JWT tokens
+- Response interceptor: Auto-refresh expired tokens (frontend/src/lib/api.js:28)
+- FormData support: Automatic content-type handling for file uploads
+
+```javascript
+// Token refresh on 401 response
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      // Attempt token refresh
+    }
+  }
+)
+```
+
+## Backend stack
+
+The server is a Node.js application built with Express.js using ES modules.
+
+### Core framework
+
+<CardGroup cols={2}>
+  <Card title="Node.js 18+" icon="node-js">
+    JavaScript runtime (ES modules enabled)
+  </Card>
+  <Card title="Express 5.2" icon="server">
+    Web framework for REST APIs
+  </Card>
+</CardGroup>
+
+### Database and ODM
+
+**MongoDB** with **Mongoose 8.12**:
+
+- Schema validation with Mongoose models
+- Connection pooling and retry logic
+- SRV DNS resolution with fallback guidance (backend/src/config/db.js:23)
+- Auto-creation of collections on first server start
+
+<Accordion title="Database models">
+  The system defines five main Mongoose schemas:
+  
+  1. **User** - Students, faculty, and store employees
+  2. **Store** - Food outlets on campus
+  3. **MenuItem** - Menu items with pricing and availability
+  4. **Order** - Order records with status tracking
+  5. **RefreshToken** - JWT refresh token whitelist
+  
+  All schemas are located in `backend/src/models/`.
+</Accordion>
+
+### Authentication
+
+```json
+"bcryptjs": "^3.0.3"           // Password hashing
+"jsonwebtoken": "^9.0.3"      // JWT generation and verification
+"cookie-parser": "^1.4.7"     // Cookie parsing middleware
+```
+
+JWT configuration:
+
+- Access tokens: 1 hour expiry
+- Refresh tokens: 7 days expiry
+- Tokens signed with separate secrets from environment variables
+
+### Security middleware
+
+<CardGroup cols={2}>
+  <Card title="Helmet 8.1" icon="shield-halved">
+    Sets secure HTTP headers
+  </Card>
+  <Card title="CORS 2.8" icon="arrows-left-right">
+    Cross-origin resource sharing
+  </Card>
+  <Card title="express-rate-limit 8.2" icon="gauge-high">
+    Rate limiting with custom strategies
+  </Card>
+</CardGroup>
+
+<Note>
+  Rate limiting uses three separate limiters: global (3000 req/15min), auth (80 req/15min), and per-user order actions (300 req/15min). See backend/src/index.js:84.
+</Note>
+
+### Email service
+
+**Nodemailer 8.0** for transactional emails:
+
+- Gmail SMTP integration with app passwords
+- Email verification on registration
+- Password reset links
+- Order confirmation emails (optional)
+
+Configuration via environment variables:
+
+```
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=app-password
+```
+
+### File uploads
+
+**Multer 2.0** middleware handles image uploads:
+
+- Menu item images
+- Store logos
+- UPI QR codes
+- Stored in `/public/uploads/` (dev) or `/data/uploads/` (production)
+
+See backend/src/middleware/upload.js for Multer configuration.
+
+### Validation
+
+**Zod 4.3** for schema validation:
+
+- Request body validation
+- Type-safe error messages
+- Integration with Express via validation middleware (backend/src/middleware/validate.js)
+
+### Utilities
+
+```json
+"uuid": "^13.0.0"       // Unique identifiers for orders
+"morgan": "^1.10.1"     // HTTP request logging
+"dotenv": "^17.3.1"     // Environment variable management
+```
+
+## Development tools
+
+<CardGroup cols={2}>
+  <Card title="Nodemon 3.1" icon="rotate">
+    Auto-restart server on file changes
+  </Card>
+  <Card title="Concurrently 8.2" icon="terminal">
+    Run frontend and backend in parallel
+  </Card>
+  <Card title="ESLint 9.39" icon="circle-check">
+    Code linting and formatting
+  </Card>
+</CardGroup>
+
+### Package managers
+
+The project uses **npm** as the primary package manager. Install all dependencies with:
+
+```bash
+npm run install:all
+```
+
+This command installs dependencies for root, backend, and frontend workspaces.
+
+## Environment variables
+
+CampusBite requires several environment variables for configuration:
+
+### Backend (.env)
+
+<Accordion title="Required variables">
+  | Variable | Description | Example |
+  |----------|-------------|--------|
+  | `PORT` | Server port | `5000` |
+  | `NODE_ENV` | Environment | `development` |
+  | `DATABASE_URL` | MongoDB URI | `mongodb://localhost:27017/campusbite` |
+  | `JWT_SECRET` | Access token secret | Random 32+ char string |
+  | `JWT_REFRESH_SECRET` | Refresh token secret | Random 32+ char string |
+  | `SMTP_USER` | Gmail address | `your-email@gmail.com` |
+  | `SMTP_PASS` | Gmail app password | Generated from Google |
+  | `FRONTEND_URL` | Frontend URL | `http://localhost:5173` |
+</Accordion>
+
+<Accordion title="Optional variables">
+  | Variable | Description | Default |
+  |----------|-------------|--------|
+  | `JWT_EXPIRES_IN` | Access token expiry | `1h` |
+  | `JWT_REFRESH_EXPIRES_IN` | Refresh token expiry | `7d` |
+  | `SMTP_HOST` | SMTP server | `smtp.gmail.com` |
+  | `SMTP_PORT` | SMTP port | `587` |
+  | `FROM_EMAIL` | Sender email | `noreply@campusbite.com` |
+  | `UPLOAD_DIR` | Upload directory | `backend/public/uploads` |
+</Accordion>
+
+## Third-party integrations
+
+CampusBite integrates with external services:
+
+### Gmail SMTP
+
+Used for sending verification and password reset emails. Requires a Google account with 2-Step Verification enabled and an App Password generated.
+
+<Note>
+  Gmail App Passwords can be generated at: Google Account → Security → 2-Step Verification → App passwords.
+</Note>
+
+### UPI payment apps
+
+Generates deep links for Indian UPI payment apps:
+
+- **Google Pay** (`gpay://`)
+- **PhonePe** (`phonepe://`)
+- **Paytm** (`paytmmp://`)
+- **BHIM UPI** (`upi://`)
+
+Links are generated in backend/src/services/paymentService.js and include the store's UPI ID and payment amount.
+
+<Note>
+  UPI deep links only work on mobile devices with the respective apps installed. The system doesn't integrate with payment gateways—store employees manually confirm payments.
+</Note>
+
+## Browser compatibility
+
+The frontend targets modern browsers with:
+
+- ES2020+ JavaScript features
+- CSS Grid and Flexbox
+- Native FormData API
+- LocalStorage for auth persistence
+
+No Internet Explorer support. Minimum recommended versions:
+
+- Chrome 90+
+- Firefox 88+
+- Safari 14+
+- Edge 90+
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Project structure" href="/architecture/project-structure" icon="folder-tree">
+    Explore the codebase organization
+  </Card>
+  <Card title="Architecture overview" href="/architecture/overview" icon="sitemap">
+    Understand the system design
+  </Card>
+</CardGroup>

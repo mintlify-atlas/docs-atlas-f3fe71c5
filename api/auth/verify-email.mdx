@@ -1,0 +1,90 @@
+---
+title: Verify email
+description: Verify a user's email address using a verification token
+---
+
+## POST /api/auth/verify-email/:token
+
+Verifies a user's email address using the token sent during registration. This endpoint is idempotent—multiple requests with the same valid token will succeed.
+
+### Path parameters
+
+<ParamField path="token" type="string" required>
+  Email verification token sent to the user's email address (32-character hexadecimal string)
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean">
+  Indicates if the verification was successful
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Human-readable response message
+</ResponseField>
+
+### Status codes
+
+- `200` - Email verified successfully (or already verified)
+- `400` - Invalid or expired verification token
+- `500` - Internal server error
+
+<Note>
+  This endpoint is idempotent. If the email is already verified, the request will still return success, allowing users to click verification links multiple times without errors.
+</Note>
+
+<Warning>
+  Verification tokens do not expire but are tied to specific users. Each user has only one valid verification token at a time.
+</Warning>
+
+### Examples
+
+<CodeGroup>
+
+```bash Verify email
+curl -X POST https://api.campusbite.com/api/auth/verify-email/a3f2e1b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1
+```
+
+```html Email verification link
+<a href="https://app.campusbite.com/verify-email?token=a3f2e1b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1">
+  Verify your email
+</a>
+```
+
+</CodeGroup>
+
+#### Success response (200)
+
+```json
+{
+  "success": true,
+  "message": "Email verified successfully. You can now log in."
+}
+```
+
+#### Success response for already verified email (200)
+
+```json
+{
+  "success": true,
+  "message": "Email already verified. You can log in."
+}
+```
+
+#### Error response (400)
+
+```json
+{
+  "success": false,
+  "message": "Invalid or expired verification token."
+}
+```
+
+#### Error response (400) - Missing token
+
+```json
+{
+  "success": false,
+  "message": "Verification token is required."
+}
+```

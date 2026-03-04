@@ -1,0 +1,506 @@
+---
+title: UPI payments
+description: Learn how CampusBite integrates direct UPI payments with dynamic link generation and multiple payment app support.
+---
+
+CampusBite uses a direct-to-store UPI payment model where customers pay directly to the store's UPI ID. The platform generates UPI deep links that work across all major UPI apps in India.
+
+## Payment architecture
+
+Unlike traditional payment gateways, CampusBite implements a zero-commission model:
+
+<Steps>
+  <Step title="Customer initiates checkout">
+    System generates UPI payment links with the exact amount and payment reference.
+  </Step>
+  
+  <Step title="Customer pays via UPI app">
+    Customer opens their preferred UPI app (Google Pay, PhonePe, Paytm, etc.) and completes payment.
+  </Step>
+  
+  <Step title="Customer submits transaction ID">
+    After payment, customer enters their UPI transaction ID in CampusBite.
+  </Step>
+  
+  <Step title="Store verifies payment">
+    Store employee manually verifies the payment in their UPI app and confirms in CampusBite.
+  </Step>
+</Steps>
+
+<Note>
+This model eliminates payment gateway fees (typically 1.5-3%), allowing stores to keep 100% of their revenue. The trade-off is manual payment verification by store employees.
+</Note>
+
+## UPI link generation
+
+The system generates two types of UPI links: standard links with transaction references and compatibility links without references.
+
+### Standard UPI link
+
+```javascript backend/src/services/paymentService.js
+export const generateUpiLink = (upiId, storeName, amount, orderRef) => {
+  const normalizedUpiId = (upiId || "").trim().toLowerCase();
+  if (!isValidUpiId(normalizedUpiId)) {
+    const error = new Error("Store UPI ID is invalid. Please contact the store.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const formattedAmount = formatAmount(amount);
+  if (!formattedAmount) {
+    const error = new Error("Invalid payment amount.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const paymentRef = sanitizeTransactionRef(orderRef, 35) || "CBPAYMENT";
+  const payeeName = sanitizeText(storeName || "CampusBite Store", 40) || "CampusBite Store";
+  const note = sanitizeText(`CampusBite ${paymentRef}`, 80) || "CampusBite Payment";
+  
+  const params = new URLSearchParams({
+    pa: normalizedUpiId,        // Payee address (UPI ID)
+    pn: payeeName,              // Payee name
+    am: formattedAmount,        // Amount
+    cu: "INR",                  // Currency
+    tr: paymentRef,             // Transaction reference
+    tn: note,                   // Transaction note
+  });
+  
+  addOptionalParams(params);
+
+  return `upi://pay?${params.toString()}`;
+};
+```
+
+### UPI link parameters
+
+| Parameter | Description | Example |
+|-----------|-------------|----------|
+| `pa` | Payee UPI ID | `store@paytm` |
+| `pn` | Payee name | `Campus Canteen` |
+| `am` | Amount (2 decimal places) | `125.50` |
+| `cu` | Currency code | `INR` |
+| `tr` | Transaction reference | `CBPAY3F2A1B8C9D` |
+| `tn` | Transaction note | `CampusBite CBPAY3F2A1B8C9D` |
+| `mc` | Merchant code (optional) | `5411` |
+| `url` | Callback URL (optional) | `https://app.example.com` |
+
+<Accordion title="Optional parameters">
+**Merchant code (`mc`):**
+If you set the `UPI_MERCHANT_CODE` environment variable to a 4-digit code, it will be included in UPI links. This can provide better categorization in some UPI apps.
+
+**Callback URL (`url`):**
+If you set `APP_URL` or `FRONTEND_URL`, it will be included as a callback URL. Some UPI apps may redirect users back to this URL after payment.
+</Accordion>
+
+### Compatibility link
+
+Some older UPI apps don't support transaction references. The compatibility link omits the `tr` parameter:
+
+```javascript backend/src/services/paymentService.js
+export const generateUpiCompatibilityLink = (upiId, storeName, amount) => {
+  const normalizedUpiId = (upiId || "").trim().toLowerCase();
+  if (!isValidUpiId(normalizedUpiId)) {
+    const error = new Error("Store UPI ID is invalid. Please contact the store.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const formattedAmount = formatAmount(amount);
+  if (!formattedAmount) {
+    const error = new Error("Invalid payment amount.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const payeeName = sanitizeText(storeName || "CampusBite Store", 40) || "CampusBite Store";
+  
+  const params = new URLSearchParams({
+    pa: normalizedUpiId,
+    pn: payeeName,
+    am: formattedAmount,
+    cu: "INR",
+    tn: "CampusBite Payment",
+  });
+  
+  addOptionalParams(params);
+  return `upi://pay?${params.toString()}`;
+};
+```
+
+<Warning>
+Compatibility links don't include transaction references, making it harder to match payments to specific orders. Use these only when the standard link fails to open in the customer's UPI app.
+</Warning>
+
+## UPI ID validation
+
+The system validates UPI IDs using a regex pattern before generating payment links:
+
+```javascript backend/src/services/paymentService.js
+const UPI_ID_REGEX = /^[a-zA-Z0-9._-]{2,256}@[a-zA-Z]{2,64}$/;
+
+export const isValidUpiId = (upiId) => {
+  if (!upiId || typeof upiId !== "string") return false;
+  return UPI_ID_REGEX.test(upiId.trim());
+};
+```
+
+Valid UPI ID format:
+- Username: 2-256 alphanumeric characters, dots, underscores, or hyphens
+- `@` symbol
+- Handle: 2-64 alphabetic characters
+
+Examples:
+- `store@paytm` ✓
+- `campus.canteen@oksbi` ✓
+- `john_123@ybl` ✓
+- `store` ✗ (missing handle)
+- `store@123` ✗ (numeric handle)
+
+## App-specific deep links
+
+The system generates app-specific intent URIs for Android to provide direct app opening:
+
+```javascript backend/src/services/paymentService.js
+const toIntentUri = (query, packageName) =>
+  `intent://pay?${query}#Intent;scheme=upi;package=${packageName};end`;
+
+export const getUpiAppLinks = (upiLink) => {
+  const query = upiLink.replace(/^upi:\/\/pay\?/, "");
+  const fallback = encodeURIComponent(upiLink);
+
+  return {
+    generic: upiLink,
+    chooser: `intent://pay?${query}#Intent;scheme=upi;S.browser_fallback_url=${fallback};end`,
+    gpay: toIntentUri(query, "com.google.android.apps.nbu.paisa.user"),
+    phonepe: toIntentUri(query, "com.phonepe.app"),
+    paytm: toIntentUri(query, "net.one97.paytm"),
+    bhim: toIntentUri(query, "in.org.npci.upiapp"),
+    fallback: upiLink,
+  };
+};
+```
+
+### Supported UPI apps
+
+| App | Package Name | Intent URI |
+|-----|--------------|------------|
+| Generic | - | `upi://pay?...` |
+| Chooser | - | Shows installed UPI apps |
+| Google Pay | `com.google.android.apps.nbu.paisa.user` | Direct to Google Pay |
+| PhonePe | `com.phonepe.app` | Direct to PhonePe |
+| Paytm | `net.one97.paytm` | Direct to Paytm |
+| BHIM | `in.org.npci.upiapp` | Direct to BHIM |
+
+<Note>
+On iOS and web browsers, the generic `upi://` link will open the default UPI app or show a list of installed apps. The app-specific intent URIs only work on Android.
+</Note>
+
+## Payment reference generation
+
+Each order gets a unique payment reference for tracking:
+
+```javascript backend/src/controllers/orderController.js
+const generatePaymentReference = () =>
+  `CBPAY${crypto.randomBytes(5).toString("hex").toUpperCase()}`;
+
+const generateUniquePaymentReference = async () => {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const candidate = generatePaymentReference();
+    const existing = await Order.exists({ payment_reference: candidate });
+    if (!existing) return candidate;
+  }
+  throw new Error("Unable to generate payment reference. Please retry.");
+};
+```
+
+Payment references:
+- Start with `CBPAY` prefix
+- Followed by 10 uppercase hexadecimal characters
+- Example: `CBPAY3F2A1B8C9D`
+- Guaranteed unique across all orders
+
+## Input sanitization
+
+All user inputs are sanitized before being included in UPI links:
+
+```javascript backend/src/services/paymentService.js
+const SAFE_TEXT_REGEX = /[^a-zA-Z0-9 .,&()/-]/g;
+
+const sanitizeText = (value, maxLength = 40) => {
+  if (!value) return "";
+  return value
+    .toString()
+    .replace(SAFE_TEXT_REGEX, " ")     // Remove unsafe characters
+    .replace(/\s+/g, " ")              // Collapse whitespace
+    .trim()
+    .slice(0, maxLength);              // Enforce length limit
+};
+
+const sanitizeTransactionRef = (value, maxLength = 35) =>
+  (value || "")
+    .toString()
+    .replace(/[^a-zA-Z0-9]/g, "")      // Keep only alphanumeric
+    .slice(0, maxLength);              // Enforce length limit
+```
+
+<Warning>
+Sanitization is critical to prevent UPI link injection attacks. Never include unsanitized user input in UPI links.
+</Warning>
+
+## Amount formatting
+
+Amounts are formatted to exactly 2 decimal places as required by UPI:
+
+```javascript backend/src/services/paymentService.js
+const formatAmount = (amount) => {
+  const value = Number(amount);
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return value.toFixed(2);
+};
+```
+
+Examples:
+- `125` → `"125.00"`
+- `99.5` → `"99.50"`
+- `42.999` → `"43.00"` (rounded)
+- `-10` → `null` (invalid)
+- `"invalid"` → `null` (invalid)
+
+## Transaction ID validation
+
+Customers must provide their UPI transaction ID after payment:
+
+```javascript backend/src/controllers/orderController.js
+const TRANSACTION_ID_REGEX = /^[A-Za-z0-9]{8,40}$/;
+
+const normalizedTransactionId =
+  typeof transactionId === "string"
+    ? transactionId.trim().toUpperCase()
+    : "";
+
+if (
+  normalizedTransactionId &&
+  !TRANSACTION_ID_REGEX.test(normalizedTransactionId)
+) {
+  return res.status(400).json({
+    success: false,
+    message: "UPI transaction ID must be 8-40 alphanumeric characters when provided.",
+  });
+}
+```
+
+<Accordion title="Finding your UPI transaction ID">
+Customers can find their UPI transaction ID:
+
+1. **Google Pay**: Open the transaction → Look for "UPI transaction ID" or "Transaction ID"
+2. **PhonePe**: Tap the transaction → "Transaction Details" → "UTR number"
+3. **Paytm**: Open transaction → "Transaction ID"
+4. **BHIM**: Transaction details → "RRN" or "Transaction ID"
+
+Transaction IDs are typically 12-16 characters (e.g., `123456789012`).
+</Accordion>
+
+## Duplicate transaction prevention
+
+The system prevents the same transaction ID from being used for multiple orders:
+
+```javascript backend/src/controllers/orderController.js
+if (normalizedTransactionId) {
+  const duplicateTransactionOrder = await Order.findOne({
+    transaction_id: normalizedTransactionId,
+  }).lean();
+  
+  if (duplicateTransactionOrder) {
+    return res.status(409).json({
+      success: false,
+      message: "This transaction ID is already linked to another order. Please check the ID and try again.",
+    });
+  }
+}
+```
+
+## Payment verification flow
+
+Store employees verify payments manually using this workflow:
+
+<Steps>
+  <Step title="Customer pays and submits order">
+    Customer completes UPI payment and creates an order with the transaction ID.
+  </Step>
+  
+  <Step title="Store receives payment notification">
+    Store receives the payment in their UPI app (Google Pay, PhonePe, etc.).
+  </Step>
+  
+  <Step title="Store checks payment details">
+    Store employee verifies:
+    - Payment amount matches order total
+    - Transaction ID matches (if provided)
+    - Payment reference appears in the transaction note (if app shows it)
+  </Step>
+  
+  <Step title="Store confirms in CampusBite">
+    Store employee updates payment status to "success" in the CampusBite dashboard.
+  </Step>
+  
+  <Step title="Order proceeds to preparation">
+    Order status automatically changes to "accepted" and store can begin preparation.
+  </Step>
+</Steps>
+
+```javascript backend/src/controllers/orderController.js
+export const updatePaymentStatus = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const { paymentStatus, transactionId } = req.body;
+
+    if (!paymentStatus || !["pending", "success", "failed"].includes(paymentStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid payment status is required (pending, success, failed).",
+      });
+    }
+
+    const order = await Order.findById(id)
+      .populate("store_id")
+      .populate("user_id", "name email no_show_count trust_tier");
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found.",
+      });
+    }
+
+    if (order.store_id.owner_id.toString() !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to update this order.",
+      });
+    }
+
+    const normalizedTransactionId = transactionId?.trim().toUpperCase();
+    if (normalizedTransactionId) {
+      const duplicateTransactionOrder = await Order.findOne({
+        transaction_id: normalizedTransactionId,
+        _id: { $ne: order._id },
+      }).lean();
+
+      if (duplicateTransactionOrder) {
+        return res.status(409).json({
+          success: false,
+          message: "This transaction ID is already linked to another order.",
+        });
+      }
+
+      order.transaction_id = normalizedTransactionId;
+    }
+
+    order.payment_status = paymentStatus;
+
+    if (paymentStatus === "failed") {
+      order.order_status = "cancelled";
+      order.cancelled_at = new Date();
+      order.cancellation_reason = "payment_failed";
+    }
+
+    await order.save();
+
+    if (paymentStatus === "success") {
+      await sendOrderStatusUpdate(
+        order.user_id.email,
+        order.user_id.name,
+        formatOrder(order),
+        "accepted",
+      );
+      pushOrderNotification(order.user_id._id, order, "accepted");
+    }
+
+    res.json({
+      success: true,
+      message: paymentStatus === "success" && order.order_status === "placed"
+        ? "Payment confirmed. Waiting for customer commitment before preparation."
+        : "Payment status updated successfully.",
+      data: {
+        order: formatOrder(order, { store: order.store_id, customer: order.user_id }),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+```
+
+<Note>
+The manual verification model works well for campus environments where stores and customers have an ongoing relationship and transaction volumes are manageable.
+</Note>
+
+## API response example
+
+When you create a checkout session, you receive UPI links and payment details:
+
+```json
+{
+  "success": true,
+  "message": "Direct store UPI checkout initiated.",
+  "data": {
+    "checkoutToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "paymentReference": "CBPAY3F2A1B8C9D",
+    "expiresInSeconds": 900,
+    "paymentMode": "direct_store_upi",
+    "platformFee": 0,
+    "store": {
+      "id": "507f1f77bcf86cd799439011",
+      "name": "Campus Canteen",
+      "upiId": "canteen@paytm"
+    },
+    "items": [
+      {
+        "menuItemId": "507f191e810c19729de860ea",
+        "name": "Masala Dosa",
+        "price": 60,
+        "quantity": 2,
+        "total": 120
+      }
+    ],
+    "totalAmount": 120,
+    "payment": {
+      "mode": "direct_store_upi",
+      "upiLink": "upi://pay?pa=canteen@paytm&pn=Campus%20Canteen&am=120.00&cu=INR&tr=CBPAY3F2A1B8C9D&tn=CampusBite%20CBPAY3F2A1B8C9D",
+      "upiCompatibilityLink": "upi://pay?pa=canteen@paytm&pn=Campus%20Canteen&am=120.00&cu=INR&tn=CampusBite%20Payment",
+      "upiAppLinks": {
+        "generic": "upi://pay?...",
+        "chooser": "intent://pay?...#Intent;scheme=upi;...",
+        "gpay": "intent://pay?...#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;end",
+        "phonepe": "intent://pay?...#Intent;scheme=upi;package=com.phonepe.app;end"
+      },
+      "amount": 120,
+      "storeName": "Campus Canteen",
+      "storeUpiId": "canteen@paytm",
+      "paymentReference": "CBPAY3F2A1B8C9D"
+    }
+  }
+}
+```
+
+## Best practices
+
+<Steps>
+  <Step title="Display payment reference prominently">
+    Show the payment reference (`CBPAY...`) to customers during payment so they can include it in their UPI transaction note if their app supports it.
+  </Step>
+  
+  <Step title="Provide multiple payment options">
+    Offer both the standard UPI link and app-specific links. Let customers choose their preferred UPI app.
+  </Step>
+  
+  <Step title="Handle payment verification delays">
+    Set customer expectations that order preparation won't start until the store verifies payment (typically 1-2 minutes).
+  </Step>
+  
+  <Step title="Support transaction ID later">
+    Allow customers to submit their transaction ID after creating the order if they forgot to include it initially.
+  </Step>
+</Steps>

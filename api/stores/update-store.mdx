@@ -1,0 +1,380 @@
+---
+title: Update store
+description: Update store information including images and operating hours
+---
+
+## Endpoint
+
+```
+PUT /stores/:id
+```
+
+Update information for a specific store. Only the store owner can update their store.
+
+## Authentication
+
+Required. Must be authenticated as a store employee (owner) and must own the store being updated.
+
+**Headers:**
+- `Authorization: Bearer <token>` - JWT token from authentication
+
+**Required role:** `store_employee`
+
+## Path parameters
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the store to update (MongoDB ObjectId)
+</ParamField>
+
+## Body parameters
+
+<Note>
+This endpoint accepts both JSON and multipart/form-data. Use multipart/form-data when uploading files.
+</Note>
+
+<ParamField body="name" type="string">
+  Store name
+</ParamField>
+
+<ParamField body="description" type="string">
+  Store description (can be null)
+</ParamField>
+
+<ParamField body="upi_id" type="string">
+  UPI ID for payments. Must match format: `username@provider` (e.g., `store@paytm`)
+</ParamField>
+
+<ParamField body="is_active" type="boolean">
+  Whether the store is active and visible to customers
+</ParamField>
+
+<ParamField body="operating_hours" type="object | string">
+  Operating hours configuration. Can be a JSON object or a stringified JSON. Example:
+  ```json
+  {
+    "monday": { "open": "08:00", "close": "18:00" },
+    "tuesday": { "open": "08:00", "close": "18:00" }
+  }
+  ```
+</ParamField>
+
+<ParamField body="image_url" type="string">
+  URL to store image (if not uploading a file)
+</ParamField>
+
+<ParamField body="qr_code_url" type="string">
+  URL to QR code image (if not uploading a file)
+</ParamField>
+
+<ParamField body="image" type="file">
+  Store image file to upload (multipart form field)
+</ParamField>
+
+<ParamField body="qr_code" type="file">
+  QR code image file to upload (multipart form field)
+</ParamField>
+
+## Response
+
+<ResponseField name="success" type="boolean" required>
+  Indicates if the request was successful
+</ResponseField>
+
+<ResponseField name="message" type="string" required>
+  Success or error message
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  Contains the response data (only present when success is true)
+  
+  <Expandable title="data properties">
+    <ResponseField name="store" type="object" required>
+      Updated store object
+      
+      <Expandable title="store properties">
+        <ResponseField name="id" type="string" required>
+          Unique identifier for the store
+        </ResponseField>
+        
+        <ResponseField name="_id" type="string" required>
+          MongoDB ObjectId (same as id)
+        </ResponseField>
+        
+        <ResponseField name="name" type="string" required>
+          Store name
+        </ResponseField>
+        
+        <ResponseField name="description" type="string">
+          Store description
+        </ResponseField>
+        
+        <ResponseField name="upi_id" type="string" required>
+          UPI ID for payments (normalized to lowercase)
+        </ResponseField>
+        
+        <ResponseField name="owner_id" type="string" required>
+          ID of the store owner
+        </ResponseField>
+        
+        <ResponseField name="ownerId" type="string" required>
+          Store owner ID (camelCase)
+        </ResponseField>
+        
+        <ResponseField name="is_active" type="boolean" required>
+          Whether the store is active
+        </ResponseField>
+        
+        <ResponseField name="isActive" type="boolean" required>
+          Active status (camelCase)
+        </ResponseField>
+        
+        <ResponseField name="operating_hours" type="object">
+          Store operating hours configuration
+        </ResponseField>
+        
+        <ResponseField name="operatingHours" type="object">
+          Operating hours (camelCase)
+        </ResponseField>
+        
+        <ResponseField name="image_url" type="string">
+          URL to store image
+        </ResponseField>
+        
+        <ResponseField name="imageUrl" type="string">
+          Store image URL (camelCase)
+        </ResponseField>
+        
+        <ResponseField name="qr_code_url" type="string">
+          URL to store QR code
+        </ResponseField>
+        
+        <ResponseField name="qrCodeUrl" type="string">
+          QR code URL (camelCase)
+        </ResponseField>
+        
+        <ResponseField name="created_at" type="string">
+          ISO 8601 timestamp of creation
+        </ResponseField>
+        
+        <ResponseField name="createdAt" type="string">
+          Creation timestamp (camelCase)
+        </ResponseField>
+        
+        <ResponseField name="updated_at" type="string">
+          ISO 8601 timestamp of last update
+        </ResponseField>
+        
+        <ResponseField name="updatedAt" type="string">
+          Last update timestamp (camelCase)
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Example requests
+
+### Update with JSON
+
+<CodeGroup>
+```bash cURL
+curl -X PUT https://api.campusbite.com/stores/507f1f77bcf86cd799439011 \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Campus Cafe - Main Branch",
+    "description": "Your favorite campus coffee shop with fresh pastries",
+    "is_active": true,
+    "operating_hours": {
+      "monday": { "open": "07:00", "close": "19:00" },
+      "tuesday": { "open": "07:00", "close": "19:00" }
+    }
+  }'
+```
+
+```javascript JavaScript
+const storeId = '507f1f77bcf86cd799439011';
+const response = await fetch(`https://api.campusbite.com/stores/${storeId}`, {
+  method: 'PUT',
+  headers: {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    name: 'Campus Cafe - Main Branch',
+    description: 'Your favorite campus coffee shop with fresh pastries',
+    is_active: true,
+    operating_hours: {
+      monday: { open: '07:00', close: '19:00' },
+      tuesday: { open: '07:00', close: '19:00' }
+    }
+  })
+});
+const data = await response.json();
+```
+
+```python Python
+import requests
+
+store_id = '507f1f77bcf86cd799439011'
+headers = {
+    'Authorization': f'Bearer {token}'
+}
+data = {
+    'name': 'Campus Cafe - Main Branch',
+    'description': 'Your favorite campus coffee shop with fresh pastries',
+    'is_active': True,
+    'operating_hours': {
+        'monday': {'open': '07:00', 'close': '19:00'},
+        'tuesday': {'open': '07:00', 'close': '19:00'}
+    }
+}
+
+response = requests.put(
+    f'https://api.campusbite.com/stores/{store_id}',
+    headers=headers,
+    json=data
+)
+result = response.json()
+```
+</CodeGroup>
+
+### Update with file upload
+
+<CodeGroup>
+```bash cURL
+curl -X PUT https://api.campusbite.com/stores/507f1f77bcf86cd799439011 \
+  -H "Authorization: Bearer <token>" \
+  -F "name=Campus Cafe - Main Branch" \
+  -F "image=@/path/to/store-image.jpg" \
+  -F "qr_code=@/path/to/qr-code.png"
+```
+
+```javascript JavaScript
+const storeId = '507f1f77bcf86cd799439011';
+const formData = new FormData();
+formData.append('name', 'Campus Cafe - Main Branch');
+formData.append('image', imageFile);
+formData.append('qr_code', qrCodeFile);
+
+const response = await fetch(`https://api.campusbite.com/stores/${storeId}`, {
+  method: 'PUT',
+  headers: {
+    'Authorization': `Bearer ${token}`
+  },
+  body: formData
+});
+const data = await response.json();
+```
+
+```python Python
+import requests
+
+store_id = '507f1f77bcf86cd799439011'
+headers = {
+    'Authorization': f'Bearer {token}'
+}
+files = {
+    'image': open('/path/to/store-image.jpg', 'rb'),
+    'qr_code': open('/path/to/qr-code.png', 'rb')
+}
+data = {
+    'name': 'Campus Cafe - Main Branch'
+}
+
+response = requests.put(
+    f'https://api.campusbite.com/stores/{store_id}',
+    headers=headers,
+    data=data,
+    files=files
+)
+result = response.json()
+```
+</CodeGroup>
+
+## Example responses
+
+### Success response
+
+```json
+{
+  "success": true,
+  "message": "Store updated successfully.",
+  "data": {
+    "store": {
+      "id": "507f1f77bcf86cd799439011",
+      "_id": "507f1f77bcf86cd799439011",
+      "name": "Campus Cafe - Main Branch",
+      "description": "Your favorite campus coffee shop with fresh pastries",
+      "upi_id": "campuscafe@paytm",
+      "owner_id": "507f1f77bcf86cd799439012",
+      "ownerId": "507f1f77bcf86cd799439012",
+      "is_active": true,
+      "isActive": true,
+      "operating_hours": {
+        "monday": { "open": "07:00", "close": "19:00" },
+        "tuesday": { "open": "07:00", "close": "19:00" }
+      },
+      "operatingHours": {
+        "monday": { "open": "07:00", "close": "19:00" },
+        "tuesday": { "open": "07:00", "close": "19:00" }
+      },
+      "image_url": "/uploads/stores/campus-cafe.jpg",
+      "imageUrl": "/uploads/stores/campus-cafe.jpg",
+      "qr_code_url": "/uploads/qr-codes/campus-cafe-qr.png",
+      "qrCodeUrl": "/uploads/qr-codes/campus-cafe-qr.png",
+      "created_at": "2024-01-15T10:30:00.000Z",
+      "createdAt": "2024-01-15T10:30:00.000Z",
+      "updated_at": "2024-01-22T16:20:00.000Z",
+      "updatedAt": "2024-01-22T16:20:00.000Z"
+    }
+  }
+}
+```
+
+### Error responses
+
+```json Store not found
+{
+  "success": false,
+  "message": "Store not found."
+}
+```
+
+```json Unauthorized
+{
+  "success": false,
+  "message": "You are not authorized to update this store."
+}
+```
+
+```json Invalid UPI ID
+{
+  "success": false,
+  "message": "Invalid UPI ID format."
+}
+```
+
+## Notes
+
+<Note>
+**UPI ID validation:** The UPI ID must match the pattern `username@provider` where:
+- Username: 2-256 characters (alphanumeric, dots, underscores, hyphens)
+- Provider: 2-64 alphabetic characters
+- UPI IDs are automatically normalized to lowercase
+</Note>
+
+<Note>
+**File uploads:** When uploading files, the endpoint accepts two file fields:
+- `image`: Store image (max 1 file)
+- `qr_code`: QR code image (max 1 file)
+
+Uploaded files are automatically stored and their paths are resolved to accessible URLs.
+</Note>
+
+<Note>
+**Authorization:** Only the store owner (identified by `owner_id`) can update the store. The user making the request must:
+1. Be authenticated with a valid JWT token
+2. Have the `store_employee` role
+3. Own the store (their user ID must match the store's `owner_id`)
+</Note>

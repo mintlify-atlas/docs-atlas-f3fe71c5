@@ -1,0 +1,136 @@
+---
+title: Logout
+description: Invalidate a user's refresh token and end their session
+---
+
+## POST /api/auth/logout
+
+Logs out a user by invalidating their refresh token. This endpoint removes the refresh token from the database, preventing it from being used to obtain new access tokens.
+
+### Request body
+
+<ParamField body="refreshToken" type="string">
+  Refresh token to invalidate. This parameter is optional—the endpoint will succeed even if no token is provided
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean">
+  Always returns true
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Confirmation message
+</ResponseField>
+
+### Status codes
+
+- `200` - Logout successful
+- `500` - Internal server error
+
+<Note>
+  This endpoint is idempotent and always returns success. You can call it multiple times with the same token or without a token.
+</Note>
+
+<Warning>
+  The access token is not invalidated by this endpoint (JWTs cannot be revoked server-side). For complete security, clients should delete both tokens from local storage and rely on the short expiration time of access tokens.
+</Warning>
+
+### Examples
+
+<CodeGroup>
+
+```bash Logout with token
+curl -X POST https://api.campusbite.com/api/auth/logout \
+  -H "Content-Type: application/json" \
+  -d '{
+    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  }'
+```
+
+```bash Logout without token
+curl -X POST https://api.campusbite.com/api/auth/logout \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+```javascript Frontend implementation
+const logout = async () => {
+  const refreshToken = localStorage.getItem('refreshToken');
+  
+  try {
+    await fetch('https://api.campusbite.com/api/auth/logout', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ refreshToken })
+    });
+  } catch (error) {
+    console.error('Logout request failed:', error);
+  } finally {
+    // Always clear tokens from storage
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    
+    // Redirect to login
+    window.location.href = '/login';
+  }
+};
+```
+
+</CodeGroup>
+
+#### Success response (200)
+
+```json
+{
+  "success": true,
+  "message": "Logged out successfully."
+}
+```
+
+### Best practices
+
+For a complete logout implementation:
+
+1. **Client-side cleanup**: Delete both access and refresh tokens from local storage, cookies, or wherever they're stored
+2. **Server-side invalidation**: Call this endpoint to remove the refresh token from the database
+3. **Redirect**: Navigate the user to the login page or home page
+4. **Clear state**: Reset any user-specific application state or cached data
+
+```javascript
+const completeLogout = async () => {
+  const refreshToken = localStorage.getItem('refreshToken');
+  
+  // 1. Call logout endpoint
+  if (refreshToken) {
+    try {
+      await fetch('https://api.campusbite.com/api/auth/logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken })
+      });
+    } catch (error) {
+      console.error('Logout API call failed:', error);
+    }
+  }
+  
+  // 2. Clear tokens from storage
+  localStorage.removeItem('accessToken');
+  localStorage.removeItem('refreshToken');
+  sessionStorage.clear();
+  
+  // 3. Clear any user state
+  // (Redux, Context, etc.)
+  
+  // 4. Redirect to login
+  window.location.href = '/login';
+};
+```
+
+### Security considerations
+
+- **Access tokens remain valid**: Since JWTs are stateless, the access token will remain valid until it expires (default: 1 hour). Design your application with short-lived access tokens for better security.
+- **Multiple sessions**: If a user has multiple sessions (different devices), each has a unique refresh token. This endpoint only invalidates the specific refresh token provided.
+- **Token deletion**: The endpoint deletes all refresh tokens matching the provided token string, ensuring complete invalidation even if duplicates exist.
