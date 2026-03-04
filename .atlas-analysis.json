@@ -1,0 +1,152 @@
+{
+  "projectType": "saas",
+  "projectName": "CampusBite",
+  "projectDescription": "A campus food ordering platform for students, faculty, and canteen stores",
+  "theme": "almond",
+  "primaryColor": "#FF6B35",
+  "lightColor": "#FFB84D",
+  "darkColor": "#D94E1F",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "User Guides",
+            "pages": [
+              "guides/students",
+              "guides/store-owners",
+              "guides/ordering",
+              "guides/payments"
+            ]
+          },
+          {
+            "group": "Features",
+            "pages": [
+              "features/authentication",
+              "features/menu-management",
+              "features/order-tracking",
+              "features/upi-payments",
+              "features/otp-verification"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "deployment/environment-variables",
+              "deployment/database-setup",
+              "deployment/fly-io",
+              "deployment/docker"
+            ]
+          },
+          {
+            "group": "Architecture",
+            "pages": [
+              "architecture/overview",
+              "architecture/tech-stack",
+              "architecture/project-structure"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Authentication",
+            "pages": [
+              "api/auth/register",
+              "api/auth/login",
+              "api/auth/verify-email",
+              "api/auth/forgot-password",
+              "api/auth/reset-password",
+              "api/auth/refresh-token",
+              "api/auth/logout"
+            ]
+          },
+          {
+            "group": "Stores",
+            "pages": [
+              "api/stores/list-stores",
+              "api/stores/get-store",
+              "api/stores/update-store",
+              "api/stores/get-menu"
+            ]
+          },
+          {
+            "group": "Menu Items",
+            "pages": [
+              "api/menu/create-item",
+              "api/menu/update-item",
+              "api/menu/delete-item",
+              "api/menu/toggle-availability"
+            ]
+          },
+          {
+            "group": "Orders",
+            "pages": [
+              "api/orders/create-order",
+              "api/orders/list-orders",
+              "api/orders/get-order",
+              "api/orders/update-payment-status",
+              "api/orders/update-order-status",
+              "api/orders/verify-otp",
+              "api/orders/poll-status"
+            ]
+          },
+          {
+            "group": "Users",
+            "pages": [
+              "api/users/get-profile",
+              "api/users/update-profile"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Role-based authentication for students, faculty, and store employees",
+    "Real-time order tracking with status updates",
+    "UPI payment integration with deep linking",
+    "OTP-based order pickup verification",
+    "Store dashboard with order queue and analytics",
+    "Complete menu management system",
+    "Email verification and notifications",
+    "Shopping cart with quantity controls"
+  ],
+  "publicApiSurface": [
+    "POST /api/auth/register",
+    "POST /api/auth/login",
+    "POST /api/auth/verify-email/:token",
+    "POST /api/auth/forgot-password",
+    "POST /api/auth/reset-password/:token",
+    "POST /api/auth/refresh-token",
+    "POST /api/auth/logout",
+    "GET /api/stores",
+    "GET /api/stores/:id",
+    "PUT /api/stores/:id",
+    "GET /api/stores/:id/menu",
+    "POST /api/menu",
+    "PUT /api/menu/:id",
+    "DELETE /api/menu/:id",
+    "PATCH /api/menu/:id/availability",
+    "POST /api/orders",
+    "GET /api/orders",
+    "GET /api/orders/:id",
+    "PATCH /api/orders/:id/payment-status",
+    "PATCH /api/orders/:id/status",
+    "POST /api/orders/:id/verify-otp",
+    "GET /api/orders/:id/poll-status",
+    "GET /api/users/profile",
+    "PUT /api/users/profile"
+  ]
+}
