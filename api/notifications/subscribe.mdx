@@ -1,0 +1,256 @@
+---
+title: Subscribe to notifications
+description: Subscribe to real-time notifications via Server-Sent Events (SSE)
+---
+
+## GET /api/notifications/subscribe
+
+Establishes a Server-Sent Events (SSE) connection for receiving real-time notifications about order updates and other events.
+
+### Authentication
+
+Requires a valid JWT access token passed as a query parameter (since EventSource API doesn't support custom headers).
+
+```
+GET /api/notifications/subscribe?token=YOUR_ACCESS_TOKEN
+```
+
+<Warning>
+  The token is passed in the URL query string, not in the Authorization header, because the browser's EventSource API cannot set custom headers.
+</Warning>
+
+### Query parameters
+
+<ParamField path="token" type="string" required>
+  Your JWT access token (without the "Bearer " prefix)
+</ParamField>
+
+### Response
+
+This endpoint returns a persistent SSE connection with `Content-Type: text/event-stream`. Events are sent as they occur.
+
+#### Event format
+
+Each event is sent as a JSON object with the following structure:
+
+<ResponseField name="type" type="string">
+  Event type (e.g., `order_update`, `connected`)
+</ResponseField>
+
+<ResponseField name="title" type="string">
+  Human-readable event title
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Event message
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  Event-specific data payload
+  
+  <Expandable title="Order update data">
+    <ResponseField name="orderId" type="string">
+      Order ID
+    </ResponseField>
+    <ResponseField name="orderNumber" type="string">
+      Order number
+    </ResponseField>
+    <ResponseField name="status" type="string">
+      New order status
+    </ResponseField>
+    <ResponseField name="otp" type="string">
+      OTP code (only included when status changes to "ready")
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Connection lifecycle
+
+### Initial connection
+
+When you first connect, you'll receive a handshake event:
+
+```json
+{
+  "type": "connected",
+  "message": "Notification stream connected."
+}
+```
+
+### Heartbeat
+
+The server sends a heartbeat comment (`: heartbeat\n\n`) every 25 seconds to keep the connection alive through proxies and prevent timeouts.
+
+### Order update events
+
+When an order status changes, you'll receive:
+
+```json
+{
+  "type": "order_update",
+  "title": "Order Accepted ✅",
+  "message": "Your payment was confirmed and the store has accepted your order.",
+  "data": {
+    "orderId": "507f1f77bcf86cd799439011",
+    "orderNumber": "CB20240115001",
+    "status": "accepted"
+  }
+}
+```
+
+### When order is ready for pickup
+
+```json
+{
+  "type": "order_update",
+  "title": "Order Ready for Pickup 🔔",
+  "message": "Your order is ready! Head to the store and show the OTP to collect it.",
+  "data": {
+    "orderId": "507f1f77bcf86cd799439011",
+    "orderNumber": "CB20240115001",
+    "status": "ready",
+    "otp": "123456"
+  }
+}
+```
+
+## Example usage
+
+### JavaScript (Browser)
+
+```javascript
+// Get your access token from localStorage or your auth state
+const accessToken = localStorage.getItem('accessToken');
+
+// Create EventSource connection
+const eventSource = new EventSource(
+  `https://api.campusbite.com/api/notifications/subscribe?token=${accessToken}`
+);
+
+// Handle connection opened
+eventSource.addEventListener('open', () => {
+  console.log('SSE connection established');
+});
+
+// Handle incoming messages
+eventSource.addEventListener('message', (event) => {
+  const notification = JSON.parse(event.data);
+  console.log('Notification received:', notification);
+  
+  if (notification.type === 'order_update') {
+    // Update UI with order status change
+    updateOrderStatus(notification.data);
+    
+    // Show notification to user
+    showNotification(notification.title, notification.message);
+    
+    // If order is ready, display OTP
+    if (notification.data.status === 'ready' && notification.data.otp) {
+      displayOtp(notification.data.otp);
+    }
+  }
+});
+
+// Handle errors
+eventSource.addEventListener('error', (error) => {
+  console.error('SSE error:', error);
+  
+  // EventSource will automatically try to reconnect
+  // Close if you want to stop reconnection attempts
+  // eventSource.close();
+});
+
+// Close connection when user logs out or navigates away
+function cleanup() {
+  eventSource.close();
+}
+```
+
+### React example
+
+```javascript
+import { useEffect, useState } from 'react';
+
+function useNotifications(accessToken) {
+  const [notifications, setNotifications] = useState([]);
+  const [connected, setConnected] = useState(false);
+
+  useEffect(() => {
+    if (!accessToken) return;
+
+    const eventSource = new EventSource(
+      `${import.meta.env.VITE_API_URL}/api/notifications/subscribe?token=${accessToken}`
+    );
+
+    eventSource.addEventListener('open', () => {
+      setConnected(true);
+    });
+
+    eventSource.addEventListener('message', (event) => {
+      const notification = JSON.parse(event.data);
+      setNotifications((prev) => [notification, ...prev]);
+    });
+
+    eventSource.addEventListener('error', () => {
+      setConnected(false);
+    });
+
+    return () => {
+      eventSource.close();
+    };
+  }, [accessToken]);
+
+  return { notifications, connected };
+}
+```
+
+## Notification types
+
+### Order status updates
+
+| Status | Title | When triggered |
+|--------|-------|----------------|
+| `accepted` | Order Accepted ✅ | Store confirms payment and accepts order |
+| `processing` | Order Being Prepared 👨‍🍳 | Store starts preparing the order |
+| `ready` | Order Ready for Pickup 🔔 | Order is ready, OTP included |
+| `picked_up` | Order Collected 🍽️ | Customer picks up order with OTP |
+| `cancelled` | Order Cancelled | Order is cancelled by store or system |
+
+## Error responses
+
+```json 401 Missing token
+{
+  "success": false,
+  "message": "Token required."
+}
+```
+
+```json 401 Invalid token
+{
+  "success": false,
+  "message": "Invalid or expired token."
+}
+```
+
+```json 401 User not found
+{
+  "success": false,
+  "message": "User not found."
+}
+```
+
+## Technical details
+
+- **Protocol**: Server-Sent Events (SSE) over HTTP
+- **Content-Type**: `text/event-stream`
+- **Heartbeat interval**: 25 seconds
+- **Automatic reconnection**: Handled by browser's EventSource API
+- **Connection cleanup**: Connection is automatically closed when user disconnects
+
+<Info>
+  The connection is persistent and will remain open until either the client closes it or the server restarts. The browser will automatically attempt to reconnect if the connection is lost.
+</Info>
+
+<Note>
+  Each user can have multiple SSE connections open (e.g., multiple tabs). All connections for the same user will receive the same notifications.
+</Note>

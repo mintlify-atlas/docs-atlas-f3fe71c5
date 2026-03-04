@@ -1,0 +1,152 @@
+---
+title: Confirm order commitment
+description: Confirm commitment to pick up an order (for users with no-show history)
+---
+
+## POST /api/orders/:id/confirm-commitment
+
+Confirms the user's commitment to pick up an order. This endpoint is required for users with a history of no-shows (trust tier "watch" or "restricted") who have pending orders that require explicit commitment confirmation.
+
+### Authentication
+
+Requires a valid JWT access token in the `Authorization` header.
+
+**Allowed roles:** `student`, `faculty`
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  The order ID
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean">
+  Indicates if the commitment was confirmed successfully
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Confirmation message
+</ResponseField>
+
+<ResponseField name="order" type="object">
+  Updated order object with commitment confirmed
+  
+  <Expandable title="Order fields">
+    <ResponseField name="id" type="string">
+      Order ID
+    </ResponseField>
+    <ResponseField name="orderNumber" type="string">
+      Human-readable order number
+    </ResponseField>
+    <ResponseField name="status" type="string">
+      Current order status
+    </ResponseField>
+    <ResponseField name="requiresCommitment" type="boolean">
+      Always `true` for orders requiring commitment
+    </ResponseField>
+    <ResponseField name="commitmentConfirmedAt" type="string">
+      ISO 8601 timestamp when commitment was confirmed
+    </ResponseField>
+    <ResponseField name="commitmentDeadline" type="string">
+      ISO 8601 timestamp of the commitment deadline (4 minutes from order creation)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Example request
+
+```bash cURL
+curl -X POST https://api.campusbite.com/api/orders/507f1f77bcf86cd799439011/confirm-commitment \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+## Example responses
+
+```json 200 Success
+{
+  "success": true,
+  "message": "Commitment confirmed. Your order will be processed.",
+  "order": {
+    "id": "507f1f77bcf86cd799439011",
+    "orderNumber": "CB20240115001",
+    "status": "placed",
+    "requiresCommitment": true,
+    "commitmentConfirmedAt": "2024-01-15T10:15:30.000Z",
+    "commitmentDeadline": "2024-01-15T10:19:00.000Z",
+    "totalAmount": 380,
+    "paymentStatus": "pending"
+  }
+}
+```
+
+```json 400 Already confirmed
+{
+  "success": false,
+  "message": "Commitment already confirmed for this order."
+}
+```
+
+```json 400 Commitment expired
+{
+  "success": false,
+  "message": "Commitment window has expired. Order has been cancelled."
+}
+```
+
+```json 400 No commitment required
+{
+  "success": false,
+  "message": "This order does not require commitment confirmation."
+}
+```
+
+```json 403 Not your order
+{
+  "success": false,
+  "message": "You are not authorized to confirm commitment for this order."
+}
+```
+
+```json 404 Order not found
+{
+  "success": false,
+  "message": "Order not found."
+}
+```
+
+## How it works
+
+### Trust tier system
+
+Users are assigned a trust tier based on their no-show history:
+
+- **good**: 0-1 no-shows (no commitment required)
+- **watch**: 2 no-shows (commitment required, 4-minute window)
+- **restricted**: 3+ no-shows (ordering temporarily blocked for 14 days)
+
+### Commitment workflow
+
+1. User with no-show history creates an order
+2. Order is created with `requiresCommitment: true` and status `placed`
+3. User must call this endpoint within 4 minutes of order creation
+4. If confirmed, order proceeds normally
+5. If not confirmed within 4 minutes, order is automatically cancelled
+
+### Automatic cancellation
+
+Orders requiring commitment that are not confirmed within 4 minutes are automatically cancelled by the backend's timeout sweep. This prevents users from placing orders they won't pick up.
+
+<Warning>
+  If you fail to confirm commitment within the deadline, the order will be automatically cancelled and counted as another no-show, potentially leading to ordering restrictions.
+</Warning>
+
+<Note>
+  The commitment deadline is typically 4 minutes from order creation, but can be configured via the `ORDER_COMMITMENT_TIMEOUT_MINUTES` environment variable.
+</Note>
+
+## Related endpoints
+
+- [Create order](/api/orders/create-order) - Create a new order
+- [Get order](/api/orders/get-order) - Check if commitment is required
+- [Poll order status](/api/orders/poll-status) - Monitor order status changes

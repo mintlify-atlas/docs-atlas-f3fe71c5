@@ -1,0 +1,193 @@
+---
+title: Create checkout session
+description: Create a checkout session and get a token for order placement
+---
+
+## POST /api/orders/checkout-session
+
+Creates a checkout session that validates the cart, calculates totals, and returns a checkout token. This token must be used within 15 minutes to create the actual order.
+
+### Authentication
+
+Requires a valid JWT access token in the `Authorization` header.
+
+**Allowed roles:** `student`, `faculty`
+
+### Request body
+
+<ParamField path="storeId" type="string" required>
+  The ID of the store from which items are being ordered
+</ParamField>
+
+<ParamField path="items" type="array" required>
+  Array of cart items with menu item IDs and quantities
+
+  <Expandable title="Item object">
+    <ParamField path="menuItemId" type="string" required>
+      Menu item ID
+    </ParamField>
+    <ParamField path="quantity" type="number" required>
+      Quantity to order (must be >= 1)
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="specialInstructions" type="string">
+  Optional special instructions for the order (max 500 characters)
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean">
+  Indicates if the request was successful
+</ResponseField>
+
+<ResponseField name="checkoutToken" type="string">
+  JWT token to use for order creation (valid for 15 minutes)
+</ResponseField>
+
+<ResponseField name="paymentReference" type="string">
+  Unique payment reference for this order (format: `CBPAY` + 10 hex chars)
+</ResponseField>
+
+<ResponseField name="preview" type="object">
+  Order preview with calculated totals
+  
+  <Expandable title="Preview object">
+    <ResponseField name="items" type="array">
+      Normalized cart items with menu item details
+    </ResponseField>
+    <ResponseField name="subtotal" type="number">
+      Subtotal before any fees
+    </ResponseField>
+    <ResponseField name="totalAmount" type="number">
+      Final total amount to pay
+    </ResponseField>
+    <ResponseField name="itemCount" type="number">
+      Total number of items
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="upiLinks" type="object">
+  UPI payment deep links for various apps
+  
+  <Expandable title="UPI links object">
+    <ResponseField name="gpay" type="string">
+      Google Pay deep link
+    </ResponseField>
+    <ResponseField name="phonepe" type="string">
+      PhonePe deep link
+    </ResponseField>
+    <ResponseField name="paytm" type="string">
+      Paytm deep link
+    </ResponseField>
+    <ResponseField name="bhim" type="string">
+      BHIM deep link
+    </ResponseField>
+    <ResponseField name="generic" type="string">
+      Generic UPI link
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="expiresAt" type="string">
+  ISO 8601 timestamp when the checkout token expires
+</ResponseField>
+
+<ResponseField name="requiresCommitment" type="boolean">
+  Whether the user needs to confirm commitment before placing order (users with no-show history)
+</ResponseField>
+
+## Example request
+
+```bash cURL
+curl -X POST https://api.campusbite.com/api/orders/checkout-session \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "storeId": "507f1f77bcf86cd799439011",
+    "items": [
+      {
+        "menuItemId": "507f191e810c19729de860ea",
+        "quantity": 2
+      },
+      {
+        "menuItemId": "507f191e810c19729de860eb",
+        "quantity": 1
+      }
+    ],
+    "specialInstructions": "Extra spicy please"
+  }'
+```
+
+## Example response
+
+```json 200 Success
+{
+  "success": true,
+  "checkoutToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "paymentReference": "CBPAYF3A2C1B4D5",
+  "preview": {
+    "items": [
+      {
+        "menuItemId": "507f191e810c19729de860ea",
+        "name": "Chicken Burger",
+        "price": 150,
+        "quantity": 2,
+        "subtotal": 300
+      },
+      {
+        "menuItemId": "507f191e810c19729de860eb",
+        "name": "French Fries",
+        "price": 80,
+        "quantity": 1,
+        "subtotal": 80
+      }
+    ],
+    "subtotal": 380,
+    "totalAmount": 380,
+    "itemCount": 3
+  },
+  "upiLinks": {
+    "gpay": "gpay://upi/pay?pa=store@upi&pn=Campus%20Canteen&am=380&cu=INR&tn=CBPAYF3A2C1B4D5",
+    "phonepe": "phonepe://pay?pa=store@upi&pn=Campus%20Canteen&am=380&cu=INR&tn=CBPAYF3A2C1B4D5",
+    "paytm": "paytmmp://pay?pa=store@upi&pn=Campus%20Canteen&am=380&cu=INR&tn=CBPAYF3A2C1B4D5",
+    "bhim": "bhim://pay?pa=store@upi&pn=Campus%20Canteen&am=380&cu=INR&tn=CBPAYF3A2C1B4D5",
+    "generic": "upi://pay?pa=store@upi&pn=Campus%20Canteen&am=380&cu=INR&tn=CBPAYF3A2C1B4D5"
+  },
+  "expiresAt": "2024-01-15T10:30:00.000Z",
+  "requiresCommitment": false
+}
+```
+
+```json 403 Ordering restricted
+{
+  "success": false,
+  "message": "Ordering is temporarily restricted due to repeated no-shows until 1/25/2024, 10:30:00 AM."
+}
+```
+
+```json 400 Invalid items
+{
+  "success": false,
+  "message": "One or more menu items are unavailable or not found."
+}
+```
+
+## Workflow
+
+1. User adds items to cart on frontend
+2. Frontend calls checkout-session endpoint with cart items
+3. Backend validates items, calculates totals, generates payment reference
+4. Backend returns checkout token (valid 15 min) and UPI payment links
+5. User completes UPI payment using the payment reference
+6. User calls [create order](/api/orders/create-order) endpoint with checkout token
+
+<Note>
+  The checkout token expires after 15 minutes. If the token expires, the user must create a new checkout session.
+</Note>
+
+<Warning>
+  Users with repeated no-shows may be temporarily restricted from ordering. The `requiresCommitment` flag indicates if the user must explicitly confirm their commitment before placing the order.
+</Warning>

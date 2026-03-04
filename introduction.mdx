@@ -79,11 +79,13 @@ mode: custom
         ```
       </Step>
       
-      <Step title="Set up PostgreSQL database">
-        Create a PostgreSQL database for CampusBite. The application will automatically create the required tables on first run.
+      <Step title="Set up MongoDB database">
+        Start MongoDB locally or create a free MongoDB Atlas account. The application will automatically create collections on first run.
         
-        ```sql
-        CREATE DATABASE campusbite;
+        ```bash
+        # Local MongoDB
+        brew services start mongodb-community  # macOS
+        sudo systemctl start mongod            # Linux
         ```
       </Step>
       
@@ -225,7 +227,7 @@ mode: custom
         icon="layer-group"
         href="/architecture/tech-stack"
       >
-        React 18, Node.js, Express, PostgreSQL, Tailwind CSS v4
+        React 18, Node.js, Express, MongoDB, Tailwind CSS v4
       </Card>
       <Card
         title="Architecture overview"
@@ -273,7 +275,7 @@ mode: custom
         icon="database"
         href="/deployment/database-setup"
       >
-        Configure PostgreSQL with auto-schema creation
+        Configure MongoDB with auto-collection creation
       </Card>
       <Card
         title="Environment variables"

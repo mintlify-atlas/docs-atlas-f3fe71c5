@@ -105,7 +105,9 @@
           {
             "group": "Orders",
             "pages": [
+              "api/orders/checkout-session",
               "api/orders/create-order",
+              "api/orders/confirm-commitment",
               "api/orders/list-orders",
               "api/orders/get-order",
               "api/orders/update-payment-status",
@@ -119,6 +121,12 @@
             "pages": [
               "api/users/get-profile",
               "api/users/update-profile"
+            ]
+          },
+          {
+            "group": "Notifications",
+            "pages": [
+              "api/notifications/subscribe"
             ]
           }
         ]

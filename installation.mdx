@@ -3,7 +3,7 @@ title: Installation
 description: Set up CampusBite locally for development with complete step-by-step instructions
 ---
 
-This guide will help you set up CampusBite on your local machine for development purposes. The application consists of a React frontend, Node.js backend, and PostgreSQL database.
+This guide will help you set up CampusBite on your local machine for development purposes. The application consists of a React frontend, Node.js backend, and MongoDB database.
 
 ## Prerequisites
 
@@ -11,12 +11,12 @@ Before you begin, ensure you have the following installed:
 
 - **Node.js** >= 18.0.0 ([Download](https://nodejs.org/))
 - **npm** >= 9.0.0 (comes with Node.js)
-- **PostgreSQL** >= 14.0 ([Download](https://www.postgresql.org/download/))
+- **MongoDB** >= 6.0 ([Download](https://www.mongodb.com/try/download/community))
 - **Git** for cloning the repository
 - **Gmail account** with App Password for email functionality (optional for development)
 
 <Note>
-  You can use a hosted PostgreSQL database like [Supabase](https://supabase.com/), [Neon](https://neon.tech/), or [Railway](https://railway.app/) instead of installing PostgreSQL locally.
+  You can use a hosted MongoDB database like [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) (free tier available) instead of installing MongoDB locally.
 </Note>
 
 ## Installation steps
@@ -32,20 +32,36 @@ Before you begin, ensure you have the following installed:
   </Step>
 
   <Step title="Set up the database">
-    Create a new PostgreSQL database named `campusbite`:
+    Start MongoDB locally or create a cloud database:
 
-    ```sql
-    CREATE DATABASE campusbite;
+    **Option 1: Local MongoDB**
+    ```bash
+    # Start MongoDB service
+    # macOS (using Homebrew)
+    brew services start mongodb-community
+    
+    # Linux
+    sudo systemctl start mongod
+    
+    # Windows - MongoDB runs as a service after installation
     ```
 
+    **Option 2: MongoDB Atlas (Cloud)**
+    1. Create a free account at [MongoDB Atlas](https://www.mongodb.com/cloud/atlas)
+    2. Create a new cluster (free tier available)
+    3. Create a database user and whitelist your IP
+    4. Get your connection string
+
     <Info>
-      Database tables are automatically created on the first server start. You don't need to run any migration scripts.
+      MongoDB collections and indexes are automatically created on the first server start. You don't need to run any migration scripts.
     </Info>
 
-    If using a hosted database, copy your connection string. It should look like:
+    Your connection string should look like:
 
     ```text
-    postgresql://username:password@host:5432/database_name
+    mongodb://localhost:27017/campusbite
+    # or for Atlas:
+    mongodb+srv://username:password@cluster.mongodb.net/campusbite
     ```
   </Step>
 
@@ -66,7 +82,9 @@ Before you begin, ensure you have the following installed:
     NODE_ENV=development
 
     # Database
-    DATABASE_URL=postgresql://username:password@localhost:5432/campusbite
+    MONGODB_URI=mongodb://localhost:27017/campusbite
+    # or for MongoDB Atlas:
+    # MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/campusbite
 
     # JWT Secrets (generate random strings)
     JWT_SECRET=your-super-secret-jwt-key-min-32-chars
@@ -328,7 +346,7 @@ Frontend scripts (run from `frontend/` directory):
 |----------|-------------|----------|----------|
 | `PORT` | Backend server port | No | `5000` |
 | `NODE_ENV` | Environment mode | No | `development` |
-| `DATABASE_URL` | PostgreSQL connection string | **Yes** | - |
+| `MONGODB_URI` | MongoDB connection string | **Yes** | - |
 | `JWT_SECRET` | JWT signing secret (min 32 chars) | **Yes** | - |
 | `JWT_REFRESH_SECRET` | Refresh token secret (min 32 chars) | **Yes** | - |
 | `JWT_EXPIRES_IN` | Access token expiry time | No | `1h` |
@@ -359,18 +377,32 @@ Frontend scripts (run from `frontend/` directory):
 
 **Solution**:
 
-1. Ensure PostgreSQL is running:
+1. Ensure MongoDB is running:
 
    ```bash
-   # Check PostgreSQL status
+   # Check MongoDB status
    # macOS
-   brew services list
-
+   brew services list | grep mongodb
+   
    # Linux
-   sudo systemctl status postgresql
+   sudo systemctl status mongod
+   
+   # Windows - check Services app for MongoDB service
+   ```
 
-   # Windows
-   # Check Services app for PostgreSQL service
+2. Verify your `MONGODB_URI` in `.env`:
+   - Check connection string format
+   - Ensure credentials are correct for Atlas
+   - For local: verify MongoDB is listening on port 27017
+
+3. Test the connection manually:
+
+   ```bash
+   # Using mongosh (MongoDB Shell)
+   mongosh "mongodb://localhost:27017/campusbite"
+   
+   # For Atlas
+   mongosh "mongodb+srv://username:password@cluster.mongodb.net/campusbite"
    ```
 
 2. Verify your `DATABASE_URL` in `.env`:
